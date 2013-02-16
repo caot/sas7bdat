@@ -1,5 +1,11 @@
 #!/usr/bin/env python
+import sys
 from distutils.core import setup
+
+
+if sys.version_info < (2, 6):
+    print "Sorry, this module only works on 2.6+"
+    sys.exit(1)
 
 
 setup(name='sas7bdat',
