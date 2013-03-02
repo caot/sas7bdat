@@ -20,7 +20,8 @@ KNOWNHOSTS = set(["WIN_PRO", "WIN_NT", "WIN_NTSV", "WIN_SRV", "WIN_ASRV",
                   "XP_PRO", "XP_HOME", "NET_ASRV", "NET_DSRV", "NET_SRV",
                   "WIN_98", "W32_VSPR", "WIN", "WIN_95", "X64_VSPR", "AIX",
                   "X64_ESRV", "W32_ESRV", "W32_7PRO", "W32_VSHO", "X64_7HOM",
-                  "X64_7PRO", "X64_SRV0", "W32_SRV0", "X64_ES08", "Linux"])
+                  "X64_7PRO", "X64_SRV0", "W32_SRV0", "X64_ES08", "Linux",
+                  "HP-UX"])
 
 # Subheader signatures, 32 and 64 bit, little and big endian
 SUBH_ROWSIZE = set(["\xF7\xF7\xF7\xF7", "\x00\x00\x00\x00\xF7\xF7\xF7\xF7",
@@ -324,9 +325,8 @@ def readHeader(inFile, logger):
         # Get SAS host (16 byte field but only first 8 bytes used)
         sashost = readVal('s', h, 224 + align1 + align2, 8, endian)
         if sashost not in KNOWNHOSTS:
-            logger.error('[%s] unknown host: %s', os.path.basename(inFile),
-                         sashost)
-            return
+            logger.warning('[%s] unknown host: %s', os.path.basename(inFile),
+                           sashost)
         # Get OS info
         osversion = readVal('s', h, 240 + align1 + align2, 16, endian)
         osmaker = readVal('s', h, 256 + align1 + align2, 16, endian)
@@ -493,10 +493,14 @@ def readData(inFile, header, logger):
             if page.type not in PAGE_MIX_DATA:
                 continue
             if header.u64:
-                logger.error('[%s] 64-bit files not yet implemented',
-                             os.path.basename(inFile))
-                yield None
-                continue
+                if page.type in PAGE_MIX:
+                    rowcountp = header.rowcountfp
+                    base = 40 + page.subheadercount * 24
+                    base = base + base % 8
+                else:
+                    rowcountp = readVal('h', page.data, 34, 2,
+                                        header.endian)
+                    base = 40
             else:
                 if page.type in PAGE_MIX:
                     rowcountp = header.rowcountfp
