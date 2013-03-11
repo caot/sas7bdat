@@ -284,13 +284,13 @@ def readHeader(inFile, logger):
         u64 = u64 and plat == 'unix'
         name = readVal('s', h, 92, 64, endian).lstrip().strip()
         # Timestamp is epoch 01/01/1960
-        datecreated = readVal('d', h, 164 + align1, 8, endian)
+        datecreated = readVal('d', h, 164 + align1 + align2, 8, endian)
         try:
             datecreated = datetime.strptime('1960/01/01', "%Y/%m/%d") +\
                 timedelta(seconds=datecreated)
         except:
             pass
-        datemodified = readVal('d', h, 172 + align1, 8, endian)
+        datemodified = readVal('d', h, 172 + align1 + align2, 8, endian)
         try:
             datemodified = datetime.strptime('1960/01/01', "%Y/%m/%d") + \
                 timedelta(seconds=datemodified)
