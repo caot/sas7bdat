@@ -51,7 +51,7 @@ if __name__ == '__main__':
                       help="Set the delimiter in the output csv file. "
                            "Defaults to '%default'.")
     parser.add_option('--progress-step', action='store', default=100000,
-                      metavar='N',
+                      metavar='N', type='int',
                       help="Set the progress step size. Progress will be "
                            "displayed every N steps. Defaults to %default.")
     options, args = parser.parse_args()

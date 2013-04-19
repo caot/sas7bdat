@@ -9,6 +9,7 @@ import csv
 import struct
 import logging
 import platform
+from cStringIO import StringIO
 from datetime import datetime, timedelta
 from collections import namedtuple
 
@@ -50,10 +51,11 @@ PAGE_META = 0
 PAGE_DATA = 256        # 1 << 8
 PAGE_MIX = [512, 640]  # 1 << 9, 1 << 9 | 1 << 7
 PAGE_AMD = 1024        # 1 << 10
-PAGE_COMP = -28672     # 1 << 16 | 1 << 13
+PAGE_METC = 16384      # 1 << 14 (compressed data)
+PAGE_COMP = -28672     # ~(1 << 14 | 1 << 13 | 1 << 12)
 PAGE_MIX_DATA = PAGE_MIX + [PAGE_DATA]
 PAGE_META_MIX_AMD = [PAGE_META] + PAGE_MIX + [PAGE_AMD]
-PAGE_ANY = PAGE_META_MIX_AMD + [PAGE_DATA]
+PAGE_ANY = PAGE_META_MIX_AMD + [PAGE_DATA, PAGE_METC, PAGE_COMP]
 
 
 def _debug(t, v, tb):
@@ -203,14 +205,49 @@ def readColumnLabels(collabs, coltext, u64, endian, colcount):
 
 def readPages(f, pagecount, pagesize, u64, endian):
     # Read pages
-    Page = namedtuple('Page', ['number', 'data', 'type', 'subheadercount'])
+    Page = namedtuple('Page', ['number', 'data', 'type', 'blockcount',
+                               'subheadercount'])
     for i in xrange(pagecount):
         page = f.read(pagesize)
         ptype = readVal('h', page, 32 if u64 else 16, 2, endian)
+        blockcount = 0
         subhcount = 0
         if ptype in PAGE_META_MIX_AMD:
+            blockcount = readVal('h', page, 34 if u64 else 18, 2, endian)
             subhcount = readVal('h', page, 36 if u64 else 20, 2, endian)
-        yield Page(i, page, ptype, subhcount)
+        yield Page(i, page, ptype, blockcount, subhcount)
+
+
+def readSubheaders(inFile, f, pagecount, pagesize, u64, endian, logger):
+    SubHeader = namedtuple('SubHeader', ['page', 'offset', 'length', 'raw',
+                                         'signature', 'compression'])
+    oshp = 40 if u64 else 24
+    lshp = 24 if u64 else 12
+    lshf = 8 if u64 else 4
+    dtype = 'q' if u64 else 'i'
+    for page in readPages(f, pagecount, pagesize, u64, endian):
+        if page.type not in PAGE_META_MIX_AMD:
+            continue
+        pointers = page.data[oshp:oshp + (page.subheadercount * lshp)]
+        for i in xrange(0, len(pointers), lshp):
+            pointer = pointers[i:i + lshp]
+            offset = readVal(dtype, pointer, 0, lshf, endian)
+            length = readVal(dtype, pointer, lshf, lshf, endian)
+            comp = readVal('b', pointer, lshf * 2, 1, endian)
+            if length > 0:
+                raw = page.data[offset:offset + length]
+                signature = raw[:8 if u64 else 4]
+                if comp == 0:
+                    comp = None
+                elif comp == 1:
+                    comp = 'ignore'
+                elif comp == 4:
+                    comp = 'rle'
+                else:
+                    logger.error('[%s] unknown compression type: %d',
+                                 os.path.basename(inFile), comp)
+                yield SubHeader(page.number, offset, length,
+                                raw, signature, comp)
 
 
 def readHeader(inFile, logger):
@@ -240,7 +277,8 @@ def readHeader(inFile, logger):
         cols = '\n'.join(rows)
         hdr = 'Header:\n%s' % '\n'.join(
             ['\t%s: %s' % (k, v) for k, v in sorted(self._asdict().iteritems())
-             if v != '' and k not in ('cols', 'rowcountfp', 'rowlength')]
+             if v != '' and k not in ('cols', 'rowcountfp', 'rowlength',
+                                      'data')]
         )
         return '%s\n\nContents of dataset "%s":\n%s\n' % (hdr, self.dataset,
                                                           cols)
@@ -331,42 +369,6 @@ def readHeader(inFile, logger):
         osversion = readVal('s', h, 240 + align1 + align2, 16, endian)
         osmaker = readVal('s', h, 256 + align1 + align2, 16, endian)
         osname = readVal('s', h, 272 + align1 + align2, 16, endian)
-        # Read subheaders
-        SubHeader = namedtuple('SubHeader', ['page', 'offset', 'length', 'raw',
-                                             'signature', 'compression'])
-        subheaders = []
-        for page in readPages(f, pagecount, pagesize, u64, endian):
-            if page.type not in PAGE_META_MIX_AMD:
-                continue
-            inc = 24 if u64 else 12
-            if u64:
-                pointers = page.data[40:40 + (page.subheadercount * inc)]
-            else:
-                pointers = page.data[24:24 + (page.subheadercount * inc)]
-            for i in xrange(0, len(pointers), inc):
-                pointer = pointers[i:i + inc]
-                if u64:
-                    offset = readVal('q', pointer, 0, 8, endian)
-                    length = readVal('q', pointer, 8, 8, endian)
-                    comp = readVal('b', pointer, 16, 1, endian)
-                else:
-                    offset = readVal('i', pointer, 0, 4, endian)
-                    length = readVal('i', pointer, 4, 4, endian)
-                    comp = readVal('b', pointer, 8, 1, endian)
-                if length > 0:
-                    raw = page.data[offset:offset + length]
-                    signature = raw[:8 if u64 else 4]
-                    if comp == 0:
-                        comp = None
-                    elif comp == 1:
-                        comp = 'ignore'
-                    elif comp == 4:
-                        comp = 'rle'
-                    else:
-                        logger.error('[%s] unknown compression type: %d',
-                                     os.path.basename(inFile), comp)
-                    subheaders.append(SubHeader(page.number, offset, length,
-                                                raw, signature, comp))
         # Read row and column info
         rowsize = []
         colsize = []
@@ -374,7 +376,9 @@ def readHeader(inFile, logger):
         colattr = []
         colname = []
         collabs = []
-        for x in subheaders:
+        data = []
+        for x in readSubheaders(inFile, f, pagecount, pagesize, u64, endian,
+                                logger):
             if x is None:
                 continue
             if x.signature in SUBH_ROWSIZE:
@@ -389,6 +393,16 @@ def readHeader(inFile, logger):
                 colname.append(x)
             elif x.signature in SUBH_COLLABS:
                 collabs.append(x)
+            elif x.signature in SUBH_SUBHCNT:
+                pass
+            elif x.signature in SUBH_COLLIST:
+                pass
+            elif x.compression == 'rle':
+                pass
+            elif x.compression == 'ignore':
+                pass
+            else:
+                raise
         if len(rowsize) != 1:
             logger.error('[%s] found %d row size subheaders when expecting 1',
                          os.path.basename(inFile), len(rowsize))
@@ -446,6 +460,7 @@ def readHeader(inFile, logger):
             creator = readVal('s', coltext[0].raw, 20 if u64 else 16, lcs,
                               endian).lstrip().strip()
         else:
+            # might be RDC (Ross Data Compression)
             logger.error('[%s] Unknown compression type: %s '
                          '(possibly binary?)', os.path.basename(inFile),
                          compression)
@@ -481,6 +496,62 @@ def readHeader(inFile, logger):
     return info
 
 
+def uncompressData(data):
+    result = []
+    s = StringIO(data)
+    while True:
+        d = s.read(1)
+        if len(d) < 1:
+            break
+        d = '%02X' % ord(d)
+        command = d[0].upper()
+        length = d[1]
+        if command == '0':
+            length = int(d, 16)
+            result.append(s.read(length + 64))
+        elif command == '1':
+            pass
+        elif command == '2':
+            pass
+        elif command == '3':
+            pass
+        elif command == '4':
+            pass
+        elif command == '5':
+            pass
+        elif command == '6':
+            length = int(d, 16)
+            result.append('\x20' * (length + 17))
+        elif command == '7':
+            length = int(d, 16)
+            result.append('\x00' * (length + 17))
+        elif command == '8':
+            length = int(length, 16)
+            result.append(s.read(length + 1))
+        elif command == '9':
+            length = int(length, 16)
+            result.append(s.read(length + 17))
+        elif command == 'A':
+            length = int(length, 16)
+            result.append(s.read(length + 33))
+        elif command == 'B':
+            length = int(length, 16)
+            result.append(s.read(length + 49))
+        elif command == 'C':
+            length = int(length, 16)
+            result.append(s.read(1) * (length + 3))
+        elif command == 'D':
+            length = int(length, 16)
+            result.append('\x40' * (length + 2))
+        elif command == 'E':
+            length = int(length, 16)
+            result.append('\x20' * (length + 2))
+        elif command == 'F':
+            length = int(length, 16)
+            result.append('\x00' * (length + 2))
+    return ''.join(result)
+
+
 def readData(inFile, header, logger):
     if header.compression is not None:
         logger.error('[%s] compressed data not yet supported',
@@ -490,24 +561,30 @@ def readData(inFile, header, logger):
         f.seek(header.headerlength)
         for page in readPages(f, header.pagecount, header.pagesize, header.u64,
                               header.endian):
-            if page.type not in PAGE_MIX_DATA:
+            if page.type not in PAGE_MIX_DATA and not\
+                    (page.type == PAGE_META and header.compression == 'RLE'):
                 continue
-            if header.u64:
-                if page.type in PAGE_MIX:
+            page = page._asdict()
+            if page['type'] == PAGE_META:
+                page['data'] = uncompressData(page['data'])
+                rowcountp = header.rowcountfp
+                base = 129 + page['subheadercount'] * 24
+            elif header.u64:
+                if page['type'] in PAGE_MIX:
                     rowcountp = header.rowcountfp
-                    base = 40 + page.subheadercount * 24
-                    base = base + base % 8
+                    base = 40 + page['subheadercount'] * 24
+                    base += (base % 8)
                 else:
-                    rowcountp = readVal('h', page.data, 34, 2,
+                    rowcountp = readVal('h', page['data'], 34, 2,
                                         header.endian)
                     base = 40
             else:
-                if page.type in PAGE_MIX:
+                if page['type'] in PAGE_MIX:
                     rowcountp = header.rowcountfp
-                    base = 24 + page.subheadercount * 12
-                    base = base + base % 8
+                    base = 24 + page['subheadercount'] * 12
+                    base += (base % 8)
                 else:
-                    rowcountp = readVal('h', page.data, 18, 2,
+                    rowcountp = readVal('h', page['data'], 18, 2,
                                         header.endian)
                     base = 24
             if rowcountp > header.rowcount:
@@ -517,7 +594,7 @@ def readData(inFile, header, logger):
                 for col in header.cols:
                     offset = base + col.attr.offset
                     if col.attr.length > 0:
-                        raw = page.data[offset:offset + col.attr.length]
+                        raw = page['data'][offset:offset + col.attr.length]
                         try:
                             if col.attr.type == 'character':
                                 val = readVal('s', raw, 0, col.attr.length,
