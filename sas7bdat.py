@@ -18,10 +18,10 @@ MAGIC = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc2\xea\x81\x60" \
 # Host systems known to work
 KNOWNHOSTS = set(["WIN_PRO", "WIN_NT", "WIN_NTSV", "WIN_SRV", "WIN_ASRV",
                   "XP_PRO", "XP_HOME", "NET_ASRV", "NET_DSRV", "NET_SRV",
-                  "WIN_98", "W32_VSPR", "WIN", "WIN_95", "X64_VSPR", "AIX",
-                  "X64_ESRV", "W32_ESRV", "W32_7PRO", "W32_VSHO", "X64_7HOM",
-                  "X64_7PRO", "X64_SRV0", "W32_SRV0", "X64_ES08", "Linux",
-                  "HP-UX"])
+                  "WIN_98", "W32_VSPRO", "WIN", "WIN_95", "X64_VSPRO", "AIX",
+                  "X64_ESRV", "W32_ESRV", "W32_7PRO", "W32_VSHOME",
+                  "X64_7HOME", "X64_7PRO", "X64_SRV0", "W32_SRV0", "X64_ES08",
+                  "Linux", "HP-UX"])
 
 # Subheader signatures, 32 and 64 bit, little and big endian
 SUBH_ROWSIZE = set(["\xF7\xF7\xF7\xF7", "\x00\x00\x00\x00\xF7\xF7\xF7\xF7",
@@ -56,13 +56,13 @@ PAGE_META_MIX_AMD = [PAGE_META] + PAGE_MIX + [PAGE_AMD]
 PAGE_ANY = PAGE_META_MIX_AMD + [PAGE_DATA]
 
 
-def _debug():
+def _debug(t, v, tb):
     if hasattr(sys, 'ps1') or not sys.stderr.isatty():
-        sys.__excepthook__(type, value, tb)
+        sys.__excepthook__(t, v, tb)
     else:
         import pdb
         import traceback
-        traceback.print_exception(type, value, tb)
+        traceback.print_exception(t, v, tb)
         print
         pdb.pm()
         os._exit(1)
@@ -259,15 +259,15 @@ def readHeader(inFile, logger):
             return
         # Check for 32 or 64 bit alignment
         if h[32] == '\x33':
-            align1 = 4
+            align2 = 4
             u64 = True
         else:
-            align1 = 0
+            align2 = 0
             u64 = False
         if h[35] == '\x33':
-            align2 = 4
+            align1 = 4
         else:
-            align2 = 0
+            align1 = 0
         # Check endian
         if h[37] == '\x01':
             endian = 'little'
@@ -284,20 +284,20 @@ def readHeader(inFile, logger):
         u64 = u64 and plat == 'unix'
         name = readVal('s', h, 92, 64, endian).lstrip().strip()
         # Timestamp is epoch 01/01/1960
-        datecreated = readVal('d', h, 164 + align1 + align2, 8, endian)
+        datecreated = readVal('d', h, 164 + align1, 8, endian)
         try:
             datecreated = datetime.strptime('1960/01/01', "%Y/%m/%d") +\
                 timedelta(seconds=datecreated)
         except:
             pass
-        datemodified = readVal('d', h, 172 + align1 + align2, 8, endian)
+        datemodified = readVal('d', h, 172 + align1, 8, endian)
         try:
             datemodified = datetime.strptime('1960/01/01', "%Y/%m/%d") + \
                 timedelta(seconds=datemodified)
         except:
             pass
         # Read the rest of the header
-        hl = readVal('i', h, 196 + align2, 4, endian)
+        hl = readVal('i', h, 196 + align1, 4, endian)
         if u64:
             assert hl == 8192
         h += f.read(hl - 288)
@@ -306,16 +306,16 @@ def readHeader(inFile, logger):
                          os.path.basename(inFile))
             return
         # Get page size
-        pagesize = readVal('i', h, 200 + align2, 4, endian)
+        pagesize = readVal('i', h, 200 + align1, 4, endian)
         if pagesize < 0:
             logger.error('[%s] page size is negative',
                          os.path.basename(inFile))
             return
         # Get page count
         if u64:
-            pagecount = readVal('q', h, 204 + align2, 8, endian)
+            pagecount = readVal('q', h, 204 + align1, 4 + align2, endian)
         else:
-            pagecount = readVal('i', h, 204 + align2, 4, endian)
+            pagecount = readVal('i', h, 204 + align1, 4 + align2, endian)
         if pagecount < 1:
             logger.error('[%s] page count is not positive',
                          os.path.basename(inFile))
@@ -323,7 +323,7 @@ def readHeader(inFile, logger):
         # Get SAS release
         sasrelease = readVal('s', h, 216 + align1 + align2, 8, endian)
         # Get SAS host (16 byte field but only first 8 bytes used)
-        sashost = readVal('s', h, 224 + align1 + align2, 8, endian)
+        sashost = readVal('s', h, 224 + align1 + align2, 16, endian)
         if sashost not in KNOWNHOSTS:
             logger.warning('[%s] unknown host: %s', os.path.basename(inFile),
                            sashost)
@@ -567,4 +567,3 @@ def convertFile(inFile, outFile, header, logger, delimiter=',',
 
 if __name__ == '__main__':
     pass  # TODO: write some unit tests
-
