@@ -402,7 +402,7 @@ def readHeader(inFile, logger):
             elif x.compression == 'ignore':
                 pass
             else:
-                raise
+                pass
         if len(rowsize) != 1:
             logger.error('[%s] found %d row size subheaders when expecting 1',
                          os.path.basename(inFile), len(rowsize))
@@ -510,10 +510,15 @@ def uncompressData(data):
             length = int(d, 16)
             result.append(s.read(length + 64))
         elif command == '1':
+            # length = int(d, 16)
+            # result.append(s.read(length + 21))  # ?
             pass
         elif command == '2':
+            # length = int(d, 16)
+            # result.append(s.read(length * 5))  # ?
             pass
         elif command == '3':
+            # import pdb; pdb.set_trace()
             pass
         elif command == '4':
             pass
@@ -594,6 +599,7 @@ def readData(inFile, header, logger):
                 for col in header.cols:
                     offset = base + col.attr.offset
                     if col.attr.length > 0:
+                        # import pdb; pdb.set_trace()
                         raw = page['data'][offset:offset + col.attr.length]
                         try:
                             if col.attr.type == 'character':
