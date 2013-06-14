@@ -1,15 +1,17 @@
 #!/usr/bin/env python
+import os
 import sys
+import logging
 import optparse
 
-from sas7bdat import *
+from sas7bdat import SAS7BDAT
 
 
 def main(options, args):
     if options.debug:
-        logger = makeLogger(level=logging.DEBUG)
+        logLevel = logging.DEBUG
     else:
-        logger = makeLogger()
+        logLevel = logging.INFO
     inFiles = [args[0]]
     if len(args) == 1:
         outFiles = ['%s.csv' % os.path.splitext(args[0])[0]]
@@ -22,15 +24,13 @@ def main(options, args):
         outFiles = ['%s.csv' % os.path.splitext(x)[0] for x in inFiles]
     assert len(inFiles) == len(outFiles)
     for i in xrange(len(inFiles)):
-        logger.debug("Input: %s\nOutput: %s", inFiles[i], outFiles[i])
-        header = readHeader(inFiles[i], logger)
-        logger.debug(str(header))
+        f = SAS7BDAT(inFiles[i], logLevel=logLevel)
         if options.header:
-            logger.info(str(header))
+            f.logger.info(str(f.header))
             continue
-        convertFile(inFiles[i], outFiles[i], header, logger,
-                    delimiter=options.delimiter,
-                    stepSize=options.progress_step)
+        f.convertFile(outFiles[i],
+                      delimiter=options.delimiter,
+                      stepSize=options.progress_step)
 
 
 if __name__ == '__main__':
@@ -59,4 +59,3 @@ if __name__ == '__main__':
         parser.print_help()
         sys.exit(1)
     main(options, args)
-
