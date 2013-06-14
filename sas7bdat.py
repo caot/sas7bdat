@@ -108,7 +108,7 @@ class SAS7BDAT(object):
         """
         Create a custom logger with the specified properties.
         """
-        logger = logging.getLogger(__file__)
+        logger = logging.getLogger(self.path)
         logger.setLevel(level)
         formatter = logging.Formatter("%(message)s", "%y-%m-%d %H:%M:%S")
         streamHandler = logging.StreamHandler()
