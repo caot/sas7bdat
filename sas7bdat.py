@@ -7,6 +7,7 @@ import os
 import sys
 import csv
 import struct
+import locale
 import logging
 import platform
 from cStringIO import StringIO
@@ -519,6 +520,59 @@ class SAS7BDAT(object):
                     creator, creatorproc)
         return info
 
+    def formatNumber(self, num, places=0):
+        if hasattr(num, '__len__'):
+            num = len(num)
+        try:
+            locale.setlocale(locale.LC_NUMERIC, "en_US.UTF-8")
+        except:
+            locale.setlocale(locale.LC_NUMERIC, '')
+        places = max(0, places)
+        return locale.format('%%f' % places, num, True)
+
+    def formatValue(self, val, fmt):
+        noFormat = set(['', '$', '$CHAR', '$F', 'BEST', 'F', 'NLNUM',
+                        'SPECFMT'])
+        if fmt is None:
+            fmt = ''
+        fmt = fmt.upper()
+        if not fmt or fmt in noFormat:
+            return val
+        elif fmt == 'MMDDYY':
+            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+                    timedelta(days=val)).strftime('%m/%d/%Y')
+        elif fmt == 'DDMMYY':
+            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+                    timedelta(days=val)).strftime('%d.%m.%Y')
+        elif fmt == 'JULIAN':
+            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+                    timedelta(days=val)).strftime('%Y%d')
+        elif fmt == 'MONYY':
+            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+                    timedelta(days=val)).strftime('%b %Y').upper()
+        elif fmt == 'DATE':
+            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+                    timedelta(days=val)).strftime('%d%b%Y').upper()
+        elif fmt == 'DATETIME':
+            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+                    timedelta(seconds=val)).strftime('%Y-%m-%d %H:%M:%S')
+        elif fmt == 'TIME':
+            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+                    timedelta(seconds=val)).strftime('%H:%M:%S')
+        elif fmt == 'COMMA':
+            if isinstance(val, int):
+                return self.formatNumber(val)
+            else:
+                sval = str(val)
+                decimal = len(sval) - sval.index('.')
+                places = decimal - 1
+                if places == 1 and sval[-1] == '0':
+                    places = 0
+                return self.formatNumber(val, places=places)
+        else:
+            # import pdb; pdb.set_trace()
+            return val
+
     def uncompressData(self, data):
         result = []
         s = StringIO(data)
@@ -630,6 +684,9 @@ class SAS7BDAT(object):
                                 else:
                                     val = self.readVal(col.attr.type, raw, 0,
                                                        col.attr.length)
+                                val = self.formatValue(val, col.label.format)
+                            except KeyboardInterrupt:
+                                return
                             except:
                                 break
                             row.append(val)
