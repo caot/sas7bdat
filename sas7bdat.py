@@ -97,13 +97,14 @@ class SAS7BDAT(object):
     PAGE_META_MIX_AMD = [PAGE_META] + PAGE_MIX + [PAGE_AMD]
     PAGE_ANY = PAGE_META_MIX_AMD + [PAGE_DATA, PAGE_METC, PAGE_COMP]
 
-    def __init__(self, path, logLevel=logging.INFO):
+    def __init__(self, path, logLevel=logging.INFO, formatters=None):
         if logLevel == logging.DEBUG:
             sys.excepthook = _debug
         self.path = path
         self.logger = self._makeLogger(level=logLevel)
         self.header = self._readHeader()
         self.logger.debug(str(self.header))
+        self.formatters = formatters or {}
 
     def _makeLogger(self, level=logging.INFO):
         """
@@ -531,6 +532,8 @@ class SAS7BDAT(object):
         return locale.format('%%f' % places, num, True)
 
     def formatValue(self, val, fmt):
+        if fmt in self.formatters:
+            return self.formatters[fmt](val)
         noFormat = set(['', '$', '$CHAR', '$F', 'BEST', 'F', 'NLNUM',
                         'SPECFMT'])
         if fmt is None:
