@@ -1,9 +1,11 @@
 sas7bdat.py
 ===========
 
-This module will read sas7bdat files using pure Python (2.6+). No SAS software
+This module will read sas7bdat files using pure Python3. No SAS software
 required! The module started out as a port of the R script of the same name
 found here: <https://github.com/BioStatMatt/sas7bdat>
+
+I don't think it will behave nicely with python2.6 though... i will branch it.
 
 Also included with this library is a simple command line script,
 `sas7bdat_to_csv`, which converts sas7bdat files to csv files. It will also

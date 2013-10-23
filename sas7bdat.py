@@ -10,7 +10,7 @@ import struct
 import locale
 import logging
 import platform
-from cStringIO import StringIO
+from io import StringIO
 from datetime import datetime, timedelta
 from collections import namedtuple
 
@@ -24,7 +24,7 @@ def _debug(t, v, tb):
         import pdb
         import traceback
         traceback.print_exception(t, v, tb)
-        print
+        print()
         pdb.pm()
         os._exit(1)
 
@@ -52,39 +52,39 @@ def _getColorEmit(fn):
 
 
 class SAS7BDAT(object):
-    MAGIC = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc2\xea\x81\x60"\
-            "\xb3\x14\x11\xcf\xbd\x92\x08\x00\x09\xc7\x31\x8c\x18\x1f\x10\x11"
+    MAGIC = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc2\xea\x81\x60"\
+            b"\xb3\x14\x11\xcf\xbd\x92\x08\x00\x09\xc7\x31\x8c\x18\x1f\x10\x11"
 
     # Host systems known to work
-    KNOWNHOSTS = set(["WIN_PRO", "WIN_NT", "WIN_NTSV", "WIN_SRV", "WIN_ASRV",
-                      "XP_PRO", "XP_HOME", "NET_ASRV", "NET_DSRV", "NET_SRV",
-                      "WIN_98", "W32_VSPRO", "WIN", "WIN_95", "X64_VSPRO",
-                      "AIX", "X64_ESRV", "W32_ESRV", "W32_7PRO", "W32_VSHOME",
-                      "X64_7HOME", "X64_7PRO", "X64_SRV0", "W32_SRV0",
-                      "X64_ES08", "Linux", "HP-UX"])
+    KNOWNHOSTS = set([b"WIN_PRO", b"WIN_NT", b"WIN_NTSV", b"WIN_SRV", b"WIN_ASRV",
+                      b"XP_PRO", b"XP_HOME", b"NET_ASRV", b"NET_DSRV", b"NET_SRV",
+                      b"WIN_98", b"W32_VSPRO", b"WIN", b"WIN_95", b"X64_VSPRO",
+                      b"AIX", b"X64_ESRV", b"W32_ESRV", b"W32_7PRO", b"W32_VSHOME",
+                      b"X64_7HOME", b"X64_7PRO", b"X64_SRV0", b"W32_SRV0",
+                      b"X64_ES08", b"Linux", b"HP-UX"])
 
     # Subheader signatures, 32 and 64 bit, little and big endian
-    SUBH_ROWSIZE = set(["\xF7\xF7\xF7\xF7", "\x00\x00\x00\x00\xF7\xF7\xF7\xF7",
-                        "\xF7\xF7\xF7\xF7\x00\x00\x00\x00"])
-    SUBH_COLSIZE = set(["\xF6\xF6\xF6\xF6", "\x00\x00\x00\x00\xF6\xF6\xF6\xF6",
-                        "\xF6\xF6\xF6\xF6\x00\x00\x00\x00"])
-    SUBH_COLTEXT = set(["\xFD\xFF\xFF\xFF", "\xFF\xFF\xFF\xFD",
-                        "\xFD\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFD"])
-    SUBH_COLATTR = set(["\xFC\xFF\xFF\xFF", "\xFF\xFF\xFF\xFC",
-                        "\xFC\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC"])
-    SUBH_COLNAME = set(["\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"])
-    SUBH_COLLABS = set(["\xFE\xFB\xFF\xFF", "\xFF\xFF\xFB\xFE",
-                        "\xFE\xFB\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFB\xFE"])
-    SUBH_COLLIST = set(["\xFE\xFF\xFF\xFF", "\xFF\xFF\xFF\xFE",
-                        "\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE"])
-    SUBH_SUBHCNT = set(["\x00\xFC\xFF\xFF", "\xFF\xFF\xFC\x00",
-                        "\x00\xFC\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFC\x00"])
+    SUBH_ROWSIZE = set([b"\xF7\xF7\xF7\xF7", b"\x00\x00\x00\x00\xF7\xF7\xF7\xF7",
+                        b"\xF7\xF7\xF7\xF7\x00\x00\x00\x00"])
+    SUBH_COLSIZE = set([b"\xF6\xF6\xF6\xF6", b"\x00\x00\x00\x00\xF6\xF6\xF6\xF6",
+                        b"\xF6\xF6\xF6\xF6\x00\x00\x00\x00"])
+    SUBH_COLTEXT = set([b"\xFD\xFF\xFF\xFF", b"\xFF\xFF\xFF\xFD",
+                        b"\xFD\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+                        b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFD"])
+    SUBH_COLATTR = set([b"\xFC\xFF\xFF\xFF", b"\xFF\xFF\xFF\xFC",
+                        b"\xFC\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+                        b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC"])
+    SUBH_COLNAME = set([b"\xFF\xFF\xFF\xFF",
+                        b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"])
+    SUBH_COLLABS = set([b"\xFE\xFB\xFF\xFF", b"\xFF\xFF\xFB\xFE",
+                        b"\xFE\xFB\xFF\xFF\xFF\xFF\xFF\xFF",
+                        b"\xFF\xFF\xFF\xFF\xFF\xFF\xFB\xFE"])
+    SUBH_COLLIST = set([b"\xFE\xFF\xFF\xFF", b"\xFF\xFF\xFF\xFE",
+                        b"\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+                        b"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE"])
+    SUBH_SUBHCNT = set([b"\x00\xFC\xFF\xFF", b"\xFF\xFF\xFC\x00",
+                        b"\x00\xFC\xFF\xFF\xFF\xFF\xFF\xFF",
+                        b"\xFF\xFF\xFF\xFF\xFF\xFF\xFC\x00"])
 
     # Page types
     PAGE_META = 0
@@ -121,6 +121,7 @@ class SAS7BDAT(object):
         return logger
 
     def checkMagicNumber(self, header):
+        #print(list(zip(header[:len(self.MAGIC)], self.MAGIC)))
         return header[:len(self.MAGIC)] == self.MAGIC
 
     def readVal(self, fmt, h, start, size):
@@ -130,18 +131,18 @@ class SAS7BDAT(object):
         elif fmt == 'numeric':
             newfmt = 'd'
             if size < 8:
-                if self.endian == 'little':
-                    h = '\x00' * (8 - size) + h
+                if self.little_endian:
+                    h = b'\x00' * (8 - size) + h
                 else:
-                    h += '\x00' * (8 - size)
+                    h += b'\x00' * (8 - size)
                 size = 8
-        if self.endian == 'big':
-            newfmt = '>%s' % newfmt
-        else:
+        if self.little_endian:
             newfmt = '<%s' % newfmt
+        else:
+            newfmt = '>%s' % newfmt
         val = struct.unpack(newfmt, h[start:start + size])[0]
         if fmt == 's':
-            val = val.strip('\x00')
+            val = val.strip(b'\x00')
         return val
 
     def readColumnAttributes(self, colattr):
@@ -150,10 +151,10 @@ class SAS7BDAT(object):
         inc = 16 if self.u64 else 12
         for subh in colattr:
             if self.u64:
-                attrs = subh.raw[16:16 + ((subh.length - 28) / 16) * 16]
+                attrs = subh.raw[16:(16 + ((subh.length - 28) // 16) * 16)]
             else:
-                attrs = subh.raw[12:12 + ((subh.length - 20) / 12) * 12]
-            for i in xrange(0, len(attrs), inc):
+                attrs = subh.raw[12:(12 + ((subh.length - 20) // 12) * 12)]
+            for i in range(0, len(attrs), inc):
                 pointer = attrs[i:i + inc]
                 if self.u64:
                     offset = self.readVal('q', pointer, 0, 8)
@@ -173,10 +174,10 @@ class SAS7BDAT(object):
         inc = 8 if self.u64 else 4
         for subh in colname:
             if self.u64:
-                attrs = subh.raw[16:16 + ((subh.length - 28) / 8) * 8]
+                attrs = subh.raw[16:16 + ((subh.length - 28) // 8) * 8]
             else:
-                attrs = subh.raw[12:12 + ((subh.length - 20) / 8) * 8]
-            for i in xrange(0, len(attrs), 8):
+                attrs = subh.raw[12:12 + ((subh.length - 20) // 8) * 8]
+            for i in range(0, len(attrs), 8):
                 pointer = attrs[i:i + 8]
                 txt = self.readVal('h', pointer, 0, 2)
                 offset = self.readVal('h', pointer, 2, 2) + inc
@@ -214,7 +215,7 @@ class SAS7BDAT(object):
         # Read pages
         Page = namedtuple('Page', ['number', 'data', 'type', 'blockcount',
                                    'subheadercount'])
-        for i in xrange(pagecount):
+        for i in range(pagecount):
             page = f.read(pagesize)
             ptype = self.readVal('h', page, 32 if self.u64 else 16, 2)
             blockcount = 0
@@ -235,7 +236,7 @@ class SAS7BDAT(object):
             if page.type not in self.PAGE_META_MIX_AMD:
                 continue
             pointers = page.data[oshp:oshp + (page.subheadercount * lshp)]
-            for i in xrange(0, len(pointers), lshp):
+            for i in range(0, len(pointers), lshp):
                 pointer = pointers[i:i + lshp]
                 offset = self.readVal(dtype, pointer, 0, lshf)
                 length = self.readVal(dtype, pointer, lshf, lshf)
@@ -277,7 +278,7 @@ class SAS7BDAT(object):
             rows = [' '.join('{0:{1}}'.format(x, colwidth[i])
                     for i, x in enumerate(cols[0]))]
             rows.append(' '.join('-' * colwidth[i]
-                                 for i in xrange(len(align))))
+                                 for i in range(len(align))))
             for row in cols[1:]:
                 rows.append(' '.join(
                     '{0:{1}{2}}'.format(x, align[i], colwidth[i])
@@ -286,7 +287,7 @@ class SAS7BDAT(object):
             cols = '\n'.join(rows)
             hdr = 'Header:\n%s' % '\n'.join(
                 ['\t%s: %s' % (k, v)
-                 for k, v in sorted(self._asdict().iteritems())
+                 for k, v in sorted(self._asdict().items())
                  if v != '' and k not in ('cols', 'rowcountfp', 'rowlength',
                                           'data')]
             )
@@ -307,32 +308,28 @@ class SAS7BDAT(object):
                                   os.path.basename(self.path))
                 return
             # Check for 32 or 64 bit alignment
-            if h[32] == '\x33':
+            if h[32] == 33:
                 align2 = 4
                 u64 = True
             else:
                 align2 = 0
                 u64 = False
-            if h[35] == '\x33':
+            if h[35] == 33:
                 align1 = 4
             else:
                 align1 = 0
             # Check endian
-            if h[37] == '\x01':
-                endian = 'little'
-            else:
-                endian = 'big'
+            self.little_endian = h[37] == 1
             # Check platform
             plat = h[39]
-            if plat == '1':
+            if plat == b'1':
                 plat = 'unix'
-            elif plat == '2':
+            elif plat == b'2':
                 plat = 'windows'
             else:
                 plat = 'unknown'
             u64 = u64 and plat == 'unix'
             self.u64 = u64
-            self.endian = endian
             name = self.readVal('s', h, 92, 64).lstrip().strip()
             # Timestamp is epoch 01/01/1960
             datecreated = self.readVal('d', h, 164 + align1, 8)
@@ -368,6 +365,7 @@ class SAS7BDAT(object):
             else:
                 pagecount = self.readVal('i', h, 204 + align1, 4 + align2)
             if pagecount < 1:
+                raise ValueError("page count not >0")
                 self.logger.error('[%s] page count is not positive',
                                   os.path.basename(self.path))
                 return
@@ -390,7 +388,7 @@ class SAS7BDAT(object):
             colattr = []
             colname = []
             collabs = []
-            data = []
+            #data = []
             for x in self.readSubheaders(f, pagecount, pagesize):
                 if x is None:
                     continue
@@ -463,7 +461,7 @@ class SAS7BDAT(object):
                 20 if self.u64 else 16,
                 8
             ).lstrip().strip()
-            if compression == '':
+            if compression == b'':
                 compression = None
                 lcs = 0
                 creatorproc = self.readVal('s', coltext[0].raw,
@@ -512,9 +510,9 @@ class SAS7BDAT(object):
                                   os.path.basename(self.path), len(collabs),
                                   colcount)
             cols = []
-            for i in xrange(colcount):
+            for i in range(colcount):
                 cols.append(Column(colname[i], colattr[i], collabs[i]))
-        info = Info(hl, endian, plat, datecreated, name, datemodified,
+        info = Info(hl, 'little' if self.little_endian else 'big', plat, datecreated, name, datemodified,
                     pagesize, pagecount, sasrelease, sashost, osversion,
                     osmaker, osname, u64, rowcount, colcount, cols, rowcountfp,
                     rowlength, os.path.basename(self.path), compression,
@@ -606,10 +604,10 @@ class SAS7BDAT(object):
                 pass
             elif command == '6':
                 length = int(d, 16)
-                result.append('\x20' * (length + 17))
+                result.append(b'\x20' * (length + 17))
             elif command == '7':
                 length = int(d, 16)
-                result.append('\x00' * (length + 17))
+                result.append(b'\x00' * (length + 17))
             elif command == '8':
                 length = int(length, 16)
                 result.append(s.read(length + 1))
@@ -627,13 +625,13 @@ class SAS7BDAT(object):
                 result.append(s.read(1) * (length + 3))
             elif command == 'D':
                 length = int(length, 16)
-                result.append('\x40' * (length + 2))
+                result.append(b'\x40' * (length + 2))
             elif command == 'E':
                 length = int(length, 16)
-                result.append('\x20' * (length + 2))
+                result.append(b'\x20' * (length + 2))
             elif command == 'F':
                 length = int(length, 16)
-                result.append('\x00' * (length + 2))
+                result.append(b'\x00' * (length + 2))
         return ''.join(result)
 
     def readData(self):
@@ -672,7 +670,7 @@ class SAS7BDAT(object):
                         base = 24
                 if rowcountp > self.header.rowcount:
                     rowcountp = self.header.rowcount
-                for _ in xrange(rowcountp):
+                for _ in range(rowcountp):
                     row = []
                     for col in self.header.cols:
                         offset = base + col.attr.offset
