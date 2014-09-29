@@ -57,35 +57,35 @@ class SAS7BDAT(object):
             "\xb3\x14\x11\xcf\xbd\x92\x08\x00\x09\xc7\x31\x8c\x18\x1f\x10\x11"
 
     # Host systems known to work
-    KNOWNHOSTS = set(["WIN_PRO", "WIN_NT", "WIN_NTSV", "WIN_SRV", "WIN_ASRV",
-                      "XP_PRO", "XP_HOME", "NET_ASRV", "NET_DSRV", "NET_SRV",
-                      "WIN_98", "W32_VSPRO", "WIN", "WIN_95", "X64_VSPRO",
-                      "AIX", "X64_ESRV", "W32_ESRV", "W32_7PRO", "W32_VSHOME",
-                      "X64_7HOME", "X64_7PRO", "X64_SRV0", "W32_SRV0",
-                      "X64_ES08", "Linux", "HP-UX"])
+    KNOWNHOSTS = {"WIN_PRO", "WIN_NT", "WIN_NTSV", "WIN_SRV", "WIN_ASRV",
+                  "XP_PRO", "XP_HOME", "NET_ASRV", "NET_DSRV", "NET_SRV",
+                  "WIN_98", "W32_VSPRO", "WIN", "WIN_95", "X64_VSPRO",
+                  "AIX", "X64_ESRV", "W32_ESRV", "W32_7PRO", "W32_VSHOME",
+                  "X64_7HOME", "X64_7PRO", "X64_SRV0", "W32_SRV0",
+                  "X64_ES08", "Linux", "HP-UX"}
 
     # Subheader signatures, 32 and 64 bit, little and big endian
-    SUBH_ROWSIZE = set(["\xF7\xF7\xF7\xF7", "\x00\x00\x00\x00\xF7\xF7\xF7\xF7",
-                        "\xF7\xF7\xF7\xF7\x00\x00\x00\x00"])
-    SUBH_COLSIZE = set(["\xF6\xF6\xF6\xF6", "\x00\x00\x00\x00\xF6\xF6\xF6\xF6",
-                        "\xF6\xF6\xF6\xF6\x00\x00\x00\x00"])
-    SUBH_COLTEXT = set(["\xFD\xFF\xFF\xFF", "\xFF\xFF\xFF\xFD",
-                        "\xFD\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFD"])
-    SUBH_COLATTR = set(["\xFC\xFF\xFF\xFF", "\xFF\xFF\xFF\xFC",
-                        "\xFC\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC"])
-    SUBH_COLNAME = set(["\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"])
-    SUBH_COLLABS = set(["\xFE\xFB\xFF\xFF", "\xFF\xFF\xFB\xFE",
-                        "\xFE\xFB\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFB\xFE"])
-    SUBH_COLLIST = set(["\xFE\xFF\xFF\xFF", "\xFF\xFF\xFF\xFE",
-                        "\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE"])
-    SUBH_SUBHCNT = set(["\x00\xFC\xFF\xFF", "\xFF\xFF\xFC\x00",
-                        "\x00\xFC\xFF\xFF\xFF\xFF\xFF\xFF",
-                        "\xFF\xFF\xFF\xFF\xFF\xFF\xFC\x00"])
+    SUBH_ROWSIZE = {"\xF7\xF7\xF7\xF7", "\x00\x00\x00\x00\xF7\xF7\xF7\xF7",
+                    "\xF7\xF7\xF7\xF7\x00\x00\x00\x00"}
+    SUBH_COLSIZE = {"\xF6\xF6\xF6\xF6", "\x00\x00\x00\x00\xF6\xF6\xF6\xF6",
+                    "\xF6\xF6\xF6\xF6\x00\x00\x00\x00"}
+    SUBH_COLTEXT = {"\xFD\xFF\xFF\xFF", "\xFF\xFF\xFF\xFD",
+                    "\xFD\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+                    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFD"}
+    SUBH_COLATTR = {"\xFC\xFF\xFF\xFF", "\xFF\xFF\xFF\xFC",
+                    "\xFC\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+                    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC"}
+    SUBH_COLNAME = {"\xFF\xFF\xFF\xFF",
+                    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF"}
+    SUBH_COLLABS = {"\xFE\xFB\xFF\xFF", "\xFF\xFF\xFB\xFE",
+                    "\xFE\xFB\xFF\xFF\xFF\xFF\xFF\xFF",
+                    "\xFF\xFF\xFF\xFF\xFF\xFF\xFB\xFE"}
+    SUBH_COLLIST = {"\xFE\xFF\xFF\xFF", "\xFF\xFF\xFF\xFE",
+                    "\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF",
+                    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE"}
+    SUBH_SUBHCNT = {"\x00\xFC\xFF\xFF", "\xFF\xFF\xFC\x00",
+                    "\x00\xFC\xFF\xFF\xFF\xFF\xFF\xFF",
+                    "\xFF\xFF\xFF\xFF\xFF\xFF\xFC\x00"}
 
     # Page types
     PAGE_META = 0
@@ -391,7 +391,7 @@ class SAS7BDAT(object):
             colattr = []
             colname = []
             collabs = []
-            data = []
+            # data = []
             for x in self.readSubheaders(f, pagecount, pagesize):
                 if x is None:
                     continue
@@ -530,13 +530,12 @@ class SAS7BDAT(object):
         except:
             locale.setlocale(locale.LC_NUMERIC, '')
         places = max(0, places)
-        return locale.format('%%f' % places, num, True)
+        return locale.format('%%.%df' % places, num, True)
 
     def formatValue(self, val, fmt):
         if fmt in self.formatters:
             return self.formatters[fmt](val)
-        noFormat = set(['', '$', '$CHAR', '$F', 'BEST', 'F', 'NLNUM',
-                        'SPECFMT'])
+        noFormat = {'', '$', '$CHAR', '$F', 'BEST', 'F', 'NLNUM', 'SPECFMT'}
         if fmt is None:
             fmt = ''
         fmt = fmt.upper()

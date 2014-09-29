@@ -3,13 +3,13 @@ import sys
 from distutils.core import setup
 
 
-if sys.version_info < (2, 6):
-    print "Sorry, this module only works on 2.6+"
+if sys.version_info < (2, 7):
+    print "Sorry, this module only works on 2.7+"
     sys.exit(1)
 
 
 setup(name='sas7bdat',
-      version='0.2.2',
+      version='0.2.3',
       author='Jared Hobbs',
       author_email='jared@pyhacker.com',
       license='MIT',
