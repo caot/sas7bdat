@@ -338,13 +338,13 @@ class SAS7BDAT(object):
             # Timestamp is epoch 01/01/1960
             datecreated = self.readVal('d', h, 164 + align1, 8)
             try:
-                datecreated = datetime.strptime('1960/01/01', "%Y/%m/%d") +\
+                datecreated = datetime(1960, 1, 1) +\
                     timedelta(seconds=datecreated)
             except:
                 pass
             datemodified = self.readVal('d', h, 172 + align1, 8)
             try:
-                datemodified = datetime.strptime('1960/01/01', "%Y/%m/%d") + \
+                datemodified = datetime(1960, 1, 1) + \
                     timedelta(seconds=datemodified)
             except:
                 pass
@@ -543,25 +543,25 @@ class SAS7BDAT(object):
         if not fmt or fmt in noFormat:
             return val
         elif fmt == 'MMDDYY':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%m/%d/%Y')
         elif fmt == 'DDMMYY':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%d.%m.%Y')
         elif fmt == 'JULIAN':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%Y%d')
         elif fmt == 'MONYY':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%b %Y').upper()
         elif fmt == 'DATE':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%d%b%Y').upper()
         elif fmt == 'DATETIME':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(seconds=val)).strftime('%Y-%m-%d %H:%M:%S')
         elif fmt == 'TIME':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(seconds=val)).strftime('%H:%M:%S')
         elif fmt == 'COMMA':
             if isinstance(val, int):
