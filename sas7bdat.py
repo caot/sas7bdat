@@ -738,6 +738,11 @@ class SAS7BDAT(object):
             if outF is not None:
                 outF.close()
 
+    def toDataFrame(self):
+        import pandas as pd
+        data = list(self.readData())
+        return pd.DataFrame([dict(zip(data[0], x)) for x in data[1:]])
+
 
 if __name__ == '__main__':
     pass  # TODO: write some unit tests

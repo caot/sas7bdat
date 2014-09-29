@@ -1,7 +1,7 @@
 sas7bdat.py
 ===========
 
-This module will read sas7bdat files using pure Python (2.6+). No SAS software
+This module will read sas7bdat files using pure Python (2.7+). No SAS software
 required! The module started out as a port of the R script of the same name
 found here: <https://github.com/BioStatMatt/sas7bdat>
 
@@ -21,5 +21,25 @@ I'm sure there are more issues that I haven't come across yet. Please let me
 know if you come across a data file that isn't supported and doesn't fall into
 one of the known issues above and I'll see if I can add support for the file.
 
-Feel free to fork this project and send me pull requests!
+Usage
+=====
 
+To create a sas7bdat object, simply pass the constructor a file path:
+
+    ```
+    from sas7bdat import SAS7BDAT
+    f = SAS7BDAT('foo.sas7bdat')
+    ```
+
+Read the data using the `readData` method:
+
+    ```
+    for line in f.readData():
+        # do something...
+    ```
+
+If you'd like to get a pandas DataFrame, use the `toDataFrame` method:
+
+    ```
+    df = f.toDataFrame()
+    ```
