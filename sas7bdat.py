@@ -3,13 +3,14 @@
 A sas7bdat reader. File format taken from
 https://github.com/BioStatMatt/sas7bdat/blob/master/inst/doc/sas7bdat.rst
 """
-import os
-import sys
 import csv
-import struct
 import locale
 import logging
+import math
+import os
 import platform
+import struct
+import sys
 from cStringIO import StringIO
 from datetime import datetime, timedelta
 from collections import namedtuple
@@ -683,15 +684,23 @@ class SAS7BDAT(object):
                                 if col.attr.type == 'character':
                                     val = self.readVal('s', raw, 0,
                                                        col.attr.length)
-                                    val = val.lstrip().strip()
+                                    val = val.strip()
                                 else:
                                     val = self.readVal(col.attr.type, raw, 0,
                                                        col.attr.length)
-                                val = self.formatValue(val, col.label.format)
+
+                                if type(val) == float and math.isnan(val):
+                                    val = None
+                                else:
+                                    val = self.formatValue(
+                                        val, col.label.format)
                             except KeyboardInterrupt:
                                 return
-                            except:
-                                break
+                            except Exception, e:
+                                self.logger.error(
+                                    'Exception parsing col %s:\n%s',
+                                    str(col), str(e))
+                                raise
                             row.append(val)
                     base += self.header.rowlength
                     if row:
@@ -710,9 +719,11 @@ class SAS7BDAT(object):
                              delimiter=delimiter)
             i = 0
             for i, line in enumerate(self.readData(), 1):
-                if not line:
-                    i -= 1
-                    continue
+                if len(line) != self.header.colcount:
+                    self.logger.error(
+                        'ERROR. Parsed line into %d columns, expected %d.\n%s',
+                        len(line), self.header.colcount, line)
+                    break
                 if not i % stepSize:
                     self.logger.info('%.1f%% complete',
                                      float(i) / self.header.rowcount * 100.0)
