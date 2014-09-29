@@ -3,13 +3,14 @@
 A sas7bdat reader. File format taken from
 https://github.com/BioStatMatt/sas7bdat/blob/master/inst/doc/sas7bdat.rst
 """
-import os
-import sys
 import csv
-import struct
 import locale
 import logging
+import math
+import os
 import platform
+import struct
+import sys
 from cStringIO import StringIO
 from datetime import datetime, timedelta
 from collections import namedtuple
@@ -337,13 +338,13 @@ class SAS7BDAT(object):
             # Timestamp is epoch 01/01/1960
             datecreated = self.readVal('d', h, 164 + align1, 8)
             try:
-                datecreated = datetime.strptime('1960/01/01', "%Y/%m/%d") +\
+                datecreated = datetime(1960, 1, 1) +\
                     timedelta(seconds=datecreated)
             except:
                 pass
             datemodified = self.readVal('d', h, 172 + align1, 8)
             try:
-                datemodified = datetime.strptime('1960/01/01', "%Y/%m/%d") + \
+                datemodified = datetime(1960, 1, 1) + \
                     timedelta(seconds=datemodified)
             except:
                 pass
@@ -542,25 +543,25 @@ class SAS7BDAT(object):
         if not fmt or fmt in noFormat:
             return val
         elif fmt == 'MMDDYY':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%m/%d/%Y')
         elif fmt == 'DDMMYY':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%d.%m.%Y')
         elif fmt == 'JULIAN':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%Y%d')
         elif fmt == 'MONYY':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%b %Y').upper()
         elif fmt == 'DATE':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(days=val)).strftime('%d%b%Y').upper()
         elif fmt == 'DATETIME':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(seconds=val)).strftime('%Y-%m-%d %H:%M:%S')
         elif fmt == 'TIME':
-            return (datetime.strptime('1960/01/01', "%Y/%m/%d") +
+            return (datetime(1960, 1, 1) +
                     timedelta(seconds=val)).strftime('%H:%M:%S')
         elif fmt == 'COMMA':
             if isinstance(val, int):
@@ -683,15 +684,23 @@ class SAS7BDAT(object):
                                 if col.attr.type == 'character':
                                     val = self.readVal('s', raw, 0,
                                                        col.attr.length)
-                                    val = val.lstrip().strip()
+                                    val = val.strip()
                                 else:
                                     val = self.readVal(col.attr.type, raw, 0,
                                                        col.attr.length)
-                                val = self.formatValue(val, col.label.format)
+
+                                if isinstance(val, float) and math.isnan(val):
+                                    val = None
+                                else:
+                                    val = self.formatValue(
+                                        val, col.label.format)
                             except KeyboardInterrupt:
                                 return
-                            except:
-                                break
+                            except Exception as e:
+                                self.logger.error(
+                                    'Exception parsing col %s:\n%s',
+                                    str(col), str(e))
+                                raise
                             row.append(val)
                     base += self.header.rowlength
                     if row:
@@ -710,9 +719,11 @@ class SAS7BDAT(object):
                              delimiter=delimiter)
             i = 0
             for i, line in enumerate(self.readData(), 1):
-                if not line:
-                    i -= 1
-                    continue
+                if len(line) != self.header.colcount:
+                    self.logger.error(
+                        'ERROR. Parsed line into %d columns, expected %d.\n%s',
+                        len(line), self.header.colcount, line)
+                    break
                 if not i % stepSize:
                     self.logger.info('%.1f%% complete',
                                      float(i) / self.header.rowcount * 100.0)
