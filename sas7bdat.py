@@ -689,14 +689,14 @@ class SAS7BDAT(object):
                                     val = self.readVal(col.attr.type, raw, 0,
                                                        col.attr.length)
 
-                                if type(val) == float and math.isnan(val):
+                                if isinstance(val, float) and math.isnan(val):
                                     val = None
                                 else:
                                     val = self.formatValue(
                                         val, col.label.format)
                             except KeyboardInterrupt:
                                 return
-                            except Exception, e:
+                            except Exception as e:
                                 self.logger.error(
                                     'Exception parsing col %s:\n%s',
                                     str(col), str(e))
