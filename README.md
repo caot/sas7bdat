@@ -26,20 +26,23 @@ Usage
 
 To create a sas7bdat object, simply pass the constructor a file path:
 
-    ```
-    from sas7bdat import SAS7BDAT
+```
+#!python
+from sas7bdat import SAS7BDAT
     f = SAS7BDAT('foo.sas7bdat')
-    ```
+```
 
 Read the data using the `readData` method:
 
-    ```
-    for line in f.readData():
-        # do something...
-    ```
+```
+#!python
+for line in f.readData():
+    # do something...
+```
 
 If you'd like to get a pandas DataFrame, use the `toDataFrame` method:
 
-    ```
-    df = f.toDataFrame()
-    ```
+```
+#!python
+df = f.toDataFrame()
+```
