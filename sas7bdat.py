@@ -542,6 +542,7 @@ class SAS7BDAT(object):
         fmt = fmt.upper()
         if not fmt or fmt in noFormat:
             return val
+
         def date_to_string(fmt, days=0, seconds=0):
             # Python annoyingly cannot convert dates before 1900
             # to strings via strftime. We work around that.
@@ -550,7 +551,8 @@ class SAS7BDAT(object):
             d = datetime(2000, d.month, d.day, d.hour, d.minute, d.second)
             placeholder = '*' * 7
             datestr = d.strftime(fmt.replace('%Y', placeholder))
-            return datestr.replace(placeholder, str(year))
+            return datestr.replace(placeholder, str(year)).upper()
+
         if fmt == 'MMDDYY':
             return date_to_string('%m/%d/%Y', days=val)
         elif fmt == 'DDMMYY':
