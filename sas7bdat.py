@@ -541,27 +541,31 @@ class SAS7BDAT(object):
         fmt = fmt.upper()
         if not fmt or fmt in noFormat:
             return val
-        elif fmt == 'MMDDYY':
-            return (datetime(1960, 1, 1) +
-                    timedelta(days=val)).strftime('%m/%d/%Y')
+
+        def date_to_string(fmt, days=0, seconds=0):
+            # Python annoyingly cannot convert dates before 1900
+            # to strings via strftime. We work around that.
+            d = datetime(1960, 1, 1) + timedelta(days=days, seconds=seconds)
+            year = d.year
+            d = datetime(2000, d.month, d.day, d.hour, d.minute, d.second)
+            placeholder = '*' * 7
+            datestr = d.strftime(fmt.replace('%Y', placeholder))
+            return datestr.replace(placeholder, str(year)).upper()
+
+        if fmt == 'MMDDYY':
+            return date_to_string('%m/%d/%Y', days=val)
         elif fmt == 'DDMMYY':
-            return (datetime(1960, 1, 1) +
-                    timedelta(days=val)).strftime('%d.%m.%Y')
+            return date_to_string('%d.%m.%Y', days=val)
         elif fmt == 'JULIAN':
-            return (datetime(1960, 1, 1) +
-                    timedelta(days=val)).strftime('%Y%d')
+            return date_to_string('%Y%d', days=val)
         elif fmt == 'MONYY':
-            return (datetime(1960, 1, 1) +
-                    timedelta(days=val)).strftime('%b %Y').upper()
+            return date_to_string('%b %Y', days=val)
         elif fmt == 'DATE':
-            return (datetime(1960, 1, 1) +
-                    timedelta(days=val)).strftime('%d%b%Y').upper()
+            return date_to_string('%d%b%Y', days=val)
         elif fmt == 'DATETIME':
-            return (datetime(1960, 1, 1) +
-                    timedelta(seconds=val)).strftime('%Y-%m-%d %H:%M:%S')
+            return date_to_string('%Y-%m-%d %H:%M:%S', seconds=val)
         elif fmt == 'TIME':
-            return (datetime(1960, 1, 1) +
-                    timedelta(seconds=val)).strftime('%H:%M:%S')
+            return date_to_string('%H:%M:%S', seconds=val)
         elif fmt == 'COMMA':
             if isinstance(val, int):
                 return self.formatNumber(val)
