@@ -532,7 +532,7 @@ class SAS7BDAT(object):
         places = max(0, places)
         return locale.format('%%f' % places, num, True)
 
-    def formatValue(self, val, fmt, standard_date_fmt):
+    def formatValue(self, val, fmt, standard_date_fmt=None):
         if fmt in self.formatters:
             return self.formatters[fmt](val)
         noFormat = set(['', '$', '$CHAR', '$F', 'BEST', 'F', 'NLNUM',
@@ -644,7 +644,7 @@ class SAS7BDAT(object):
                 result.append('\x00' * (length + 2))
         return ''.join(result)
 
-    def readData(self, standard_date_fmt):
+    def readData(self, standard_date_fmt=None):
         if self.header.compression is not None:
             self.logger.error('[%s] compressed data not yet supported',
                               os.path.basename(self.path))
