@@ -532,7 +532,7 @@ class SAS7BDAT(object):
         places = max(0, places)
         return locale.format('%%.%df' % places, num, True)
 
-    def formatValue(self, val, fmt):
+    def formatValue(self, val, fmt, standard_date_fmt=None):
         if fmt in self.formatters:
             return self.formatters[fmt](val)
         noFormat = {'', '$', '$CHAR', '$F', 'BEST', 'F', 'NLNUM', 'SPECFMT'}
@@ -552,7 +552,10 @@ class SAS7BDAT(object):
             datestr = d.strftime(fmt.replace('%Y', placeholder))
             return datestr.replace(placeholder, str(year)).upper()
 
-        if fmt == 'MMDDYY':
+        if standard_date_fmt and fmt in ('MMDDYY', 'DDMMYY', 'JULIAN',
+                                         'MONYY', 'DATE'):
+            return date_to_string(standard_date_fmt, days=val)
+        elif fmt == 'MMDDYY':
             return date_to_string('%m/%d/%Y', days=val)
         elif fmt == 'DDMMYY':
             return date_to_string('%d.%m.%Y', days=val)
@@ -640,7 +643,7 @@ class SAS7BDAT(object):
                 result.append('\x00' * (length + 2))
         return ''.join(result)
 
-    def readData(self):
+    def readData(self, standard_date_fmt=None):
         if self.header.compression is not None:
             self.logger.error('[%s] compressed data not yet supported',
                               os.path.basename(self.path))
@@ -696,7 +699,8 @@ class SAS7BDAT(object):
                                     val = None
                                 else:
                                     val = self.formatValue(
-                                        val, col.label.format)
+                                        val, col.label.format,
+                                        standard_date_fmt)
                             except KeyboardInterrupt:
                                 return
                             except Exception as e:
@@ -709,7 +713,8 @@ class SAS7BDAT(object):
                     if row:
                         yield row
 
-    def convertFile(self, outFile, delimiter=',', stepSize=100000):
+    def convertFile(self, outFile, delimiter=',', stepSize=100000,
+                    standard_date_fmt='%Y-%m-%d'):
         self.logger.debug("Input: %s\nOutput: %s", self.path, outFile)
         outF = None
         try:
@@ -721,7 +726,7 @@ class SAS7BDAT(object):
                              lineterminator='\n',
                              delimiter=delimiter)
             i = 0
-            for i, line in enumerate(self.readData(), 1):
+            for i, line in enumerate(self.readData(standard_date_fmt), 1):
                 if len(line) != self.header.colcount:
                     self.logger.error(
                         'ERROR. Parsed line into %d columns, expected %d.\n%s',
