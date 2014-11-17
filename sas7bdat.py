@@ -62,6 +62,9 @@ class Decompressor(object):
 
 
 class RLEDecompressor(Decompressor):
+    """
+    Decompresses data using the Run Length Encoding algorithm
+    """
     def decompress_row(self, offset, length, result_length, page):
         current_result_array_index = 0
         result = []
@@ -159,7 +162,10 @@ class RLEDecompressor(Decompressor):
         return ''.join(result)
 
 
-class BinDecompressor(Decompressor):
+class RDCDecompressor(Decompressor):
+    """
+    Decompresses data using the Ross Data Compression algorithm
+    """
     def decompress_row(self, offset, length, result_length, page):
         raise NotImplementedError
 
@@ -172,13 +178,13 @@ class SAS7BDAT(object):
     (defaults to logging.INFO).
     """
     RLE_COMPRESSION = 'SASYZCRL'
-    BIN_COMPRESSION = 'SASYZCR2'
+    RDC_COMPRESSION = 'SASYZCR2'
     COMPRESSION_LITERALS = {
-        RLE_COMPRESSION, BIN_COMPRESSION
+        RLE_COMPRESSION, RDC_COMPRESSION
     }
     DECOMPRESSORS = {
         RLE_COMPRESSION: RLEDecompressor,
-        BIN_COMPRESSION: BinDecompressor
+        RDC_COMPRESSION: RDCDecompressor
     }
     TIME_FORMAT_STRINGS = {
         'TIME'
