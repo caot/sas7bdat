@@ -9,28 +9,33 @@ from sas7bdat import SAS7BDAT
 
 def main(options, args):
     if options.debug:
-        logLevel = logging.DEBUG
+        log_level = logging.DEBUG
     else:
-        logLevel = logging.INFO
-    inFiles = [args[0]]
+        log_level = logging.INFO
+    in_files = [args[0]]
     if len(args) == 1:
-        outFiles = ['%s.csv' % os.path.splitext(args[0])[0]]
+        out_files = ['%s.csv' % os.path.splitext(args[0])[0]]
     elif len(args) == 2 and (args[1] == '-' or
                              args[1].lower().endswith('.csv')):
-        outFiles = [args[1]]
+        out_files = [args[1]]
     else:
         assert all(x.lower().endswith('.sas7bdat') for x in args)
-        inFiles = args
-        outFiles = ['%s.csv' % os.path.splitext(x)[0] for x in inFiles]
-    assert len(inFiles) == len(outFiles)
-    for i in xrange(len(inFiles)):
-        f = SAS7BDAT(inFiles[i], logLevel=logLevel)
-        if options.header:
-            f.logger.info(str(f.header))
-            continue
-        f.convertFile(outFiles[i],
-                      delimiter=options.delimiter,
-                      stepSize=options.progress_step)
+        in_files = args
+        out_files = ['%s.csv' % os.path.splitext(x)[0] for x in in_files]
+    assert len(in_files) == len(out_files)
+    status = []
+    for i in xrange(len(in_files)):
+        with SAS7BDAT(in_files[i], log_level=log_level) as f:
+            if options.header:
+                f.logger.info(str(f.header))
+                continue
+            status.append(f.convert_file(out_files[i],
+                                         delimiter=options.delimiter,
+                                         step_size=options.progress_step))
+    if status:
+        print 'Successfully converted %s of %s file%s' %\
+              (len([x for x in status if x]), len(in_files),
+               '' if len(in_files) == 1 else 's')
 
 
 if __name__ == '__main__':
