@@ -27,7 +27,7 @@ def _debug(t, v, tb):
         os._exit(1)
 
 
-def _get_color_emit(fn):
+def _get_color_emit(prefix, fn):
     # This doesn't work on Windows since Windows doesn't support
     # the ansi escape characters
     def _new(handler):
@@ -44,7 +44,7 @@ def _get_color_emit(fn):
             color = '\x1b[35m'  # pink
         else:
             color = '\x1b[0m'   # normal
-        handler.msg = color + handler.msg + '\x1b[0m'  # normal
+        handler.msg = '%s[%s] %s%s' % (color, prefix, handler.msg, '\x1b[0m')
         return fn(handler)
     return _new
 
@@ -153,7 +153,7 @@ class RLEDecompressor(Decompressor):
                     result.append(chr(0x00))
                     current_result_array_index += 1
             else:
-                self.parent.logger.error('Unknown control byte: %s',
+                self.parent.logger.error('unknown control byte: %s',
                                          control_byte)
             i += 1
         return ''.join(result)
@@ -220,7 +220,7 @@ class SAS7BDAT(object):
         self.header = SASHeader(self)
         self.properties = self.header.properties
         self.header.parse_metadata()
-        self.logger.debug(str(self.header))
+        self.logger.debug('\n%s', str(self.header))
 
     def __repr__(self):
         """
@@ -263,10 +263,16 @@ class SAS7BDAT(object):
         """
         logger = logging.getLogger(self.path)
         logger.setLevel(level)
-        formatter = logging.Formatter('%(message)s', '%y-%m-%d %H:%M:%S')
+        fmt = '%(message)s'
         streamHandler = logging.StreamHandler()
         if platform.system() != 'Windows':
-            streamHandler.emit = _get_color_emit(streamHandler.emit)
+            streamHandler.emit = _get_color_emit(
+                os.path.basename(self.path),
+                streamHandler.emit
+            )
+        else:
+            fmt = '[%s] %%(message)s' % os.path.basename(self.path)
+        formatter = logging.Formatter(fmt, '%y-%m-%d %H:%M:%S')
         streamHandler.setFormatter(formatter)
         logger.addHandler(streamHandler)
         return logger
@@ -283,7 +289,7 @@ class SAS7BDAT(object):
                 tmp = self._file.read(length)
                 if len(tmp) < length:
                     self.logger.error(
-                        'Failed to read bytes from sas7bdat file'
+                        'failed to read %s bytes from sas7bdat file', length
                     )
                 self.current_file_position = offset + length
                 result[offset] = tmp
@@ -393,8 +399,7 @@ class SAS7BDAT(object):
                     self._read_next_page()
                     self.current_row_on_page_index = 0
             else:
-                self.logger.error('Unknown page type: %s\n'
-                                  'Please report this bug!', current_page_type)
+                self.logger.error('unknown page type: %s', current_page_type)
             yield self.current_row
 
     def _read_next_page(self):
@@ -404,7 +409,10 @@ class SAS7BDAT(object):
             return
 
         if len(self.cached_page) != self.properties.page_length:
-            self.logger.error('Failed to read page from file')
+            self.logger.error(
+                'failed to read complete page from file (read %s of %s bytes)',
+                len(self.cached_page), self.properties.page_length
+            )
         self.header.read_page_header()
         if self.current_page_type == self.header.PAGE_META_TYPE:
             self.header.process_page_metadata()
@@ -475,7 +483,7 @@ class SAS7BDAT(object):
         text file. Defaults to comma separated. The step_size parameter
         is uses to show progress on longer running conversions.
         """
-        self.logger.debug("Input: %s\nOutput: %s", self.path, out_file)
+        self.logger.debug('saving as: %s', out_file)
         out_f = None
         success = True
         try:
@@ -487,8 +495,8 @@ class SAS7BDAT(object):
             i = 0
             for i, line in enumerate(self, 1):
                 if len(line) != self.properties.column_count:
-                    msg = 'ERROR. Parsed line into %d columns, ' \
-                          'expected %d.\n%s' %\
+                    msg = 'parsed line into %s columns but was ' \
+                          'expecting %s.\n%s' %\
                           (len(line), self.properties.column_count, line)
                     self.logger.error(msg)
                     success = False
@@ -503,9 +511,9 @@ class SAS7BDAT(object):
                 try:
                     out.writerow(line)
                 except IOError:
-                    self.logger.warn('Wrote %d lines before interruption', i)
+                    self.logger.warn('wrote %s lines before interruption', i)
                     break
-            self.logger.info('[%s] wrote %d of %d lines',
+            self.logger.info(u'\u27f6 [%s] wrote %s of %s lines',
                              os.path.basename(out_file), i - 1,
                              self.properties.row_count)
         finally:
@@ -978,12 +986,10 @@ class SASHeader(object):
         # Check magic number
         h = parent.cached_page = parent._file.read(288)
         if len(h) < 288:
-            parent.logger.error('[%s] header too short (not a sas7bdat '
-                                'file?)', os.path.basename(parent.path))
+            parent.logger.error('header too short (not a sas7bdat file?)')
             return
         if not self.check_magic_number(h):
-            parent.logger.error('[%s] magic number mismatch',
-                                os.path.basename(parent.path))
+            parent.logger.error('magic number mismatch')
             return
         align1 = 0
         align2 = 0
@@ -1063,10 +1069,7 @@ class SASHeader(object):
         )
         h = parent.cached_page
         if len(h) != self.properties.header_length:
-            parent.logger.error(
-                '[%s] header too short (not a sas7bdat file?)',
-                os.path.basename(parent.path)
-            )
+            parent.logger.error('header too short (not a sas7bdat file?)')
             return
         self.properties.page_length = parent._read_val(
             'i', vals[self.PAGE_SIZE_OFFSET + align1],
@@ -1150,7 +1153,9 @@ class SASHeader(object):
             if len(self.parent.cached_page) <= 0:
                 break
             if len(self.parent.cached_page) != self.properties.page_length:
-                self.parent.logger.error('Failed to read page from file')
+                self.parent.logger.error(
+                    'Failed to read a meta data page from file'
+                )
             done = self.process_page_meta()
 
     def read_page_header(self):
@@ -1214,7 +1219,7 @@ class SASHeader(object):
                             pointer
                         )
                 else:
-                    parent.logger.debug('Unknown subheader signature')
+                    parent.logger.debug('unknown subheader signature')
 
     def read_subheader_signature(self, offset):
         length = 8 if self.properties.u64 else 4

@@ -11,7 +11,7 @@ Also included with this library is a simple command line script,
 print out header information and meta data using the `--header` option and it
 will batch convert files as well. Use the `--help` option for more information.
 
-As is, I've successfully tested the script on around a hundred sample files I
+As is, I've successfully tested the script almost three hundred sample files I
 found on the internet. For the most part, it works well. We can now read
 compressed files!
 
