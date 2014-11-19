@@ -166,8 +166,165 @@ class RDCDecompressor(Decompressor):
     """
     Decompresses data using the Ross Data Compression algorithm
     """
+    def bytes_to_bits(self, src, offset, length):
+        result = [0] * (length * 8)
+        for i in xrange(length):
+            b = src[offset + i]
+            for bit in xrange(8):
+                result[8 * i + (7 - bit)] = 0 if ((b & (1 << bit)) == 0) else 1
+        return result
+
+    def ensure_capacity(self, src, capacity):
+        if capacity >= len(src):
+            new_len = max(capacity, 2 * len(src))
+            src.extend([0] * (new_len - len(src)))
+        return src
+
+    def is_short_rle(self, first_byte_of_cb):
+        return first_byte_of_cb in {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}
+
+    def is_single_byte_marker(self, first_byte_of_cb):
+        return first_byte_of_cb in {0x02, 0x04, 0x06, 0x08, 0x0A}
+
+    def is_two_bytes_marker(self, double_bytes_cb):
+        return ((double_bytes_cb[0] >> 4) & 0xF) > 2
+
+    def is_three_bytes_marker(self, three_byte_marker):
+        flag = three_byte_marker[0] >> 4
+        return (flag & 0xF) in {1, 2}
+
+    def get_length_of_rle_pattern(self, first_byte_of_cb):
+        if first_byte_of_cb <= 0x05:
+            return first_byte_of_cb + 3
+        return 0
+
+    def get_length_of_one_byte_pattern(self, first_byte_of_cb):
+        return first_byte_of_cb + 14\
+            if self.is_single_byte_marker(first_byte_of_cb) else 0
+
+    def get_length_of_two_bytes_pattern(self, double_bytes_cb):
+        return (double_bytes_cb[0] >> 4) & 0xF
+
+    def get_length_of_three_bytes_pattern(self, p_type, three_byte_marker):
+        if p_type == 1:
+            return 19 + (three_byte_marker[0] & 0xF) +\
+                (three_byte_marker[1] * 16)
+        elif p_type == 2:
+            return three_byte_marker[2] + 16
+        return 0
+
+    def get_offset_for_one_byte_pattern(self, first_byte_of_cb):
+        if first_byte_of_cb == 0x08:
+            return 24
+        elif first_byte_of_cb == 0x0A:
+            return 40
+        return 0
+
+    def get_offset_for_two_bytes_pattern(self, double_bytes_cb):
+        return 3 + (double_bytes_cb[0] & 0xF) + (double_bytes_cb[1] * 16)
+
+    def get_offset_for_three_bytes_pattern(self, triple_bytes_cb):
+        return 3 + (triple_bytes_cb[0] & 0xF) + (triple_bytes_cb[1] * 16)
+
+    def clone_byte(self, b, length):
+        return [b] * length
+
     def decompress_row(self, offset, length, result_length, page):
-        raise NotImplementedError
+        src_row = [ord(x) for x in page[offset:offset + length]]
+        out_row = [0] * result_length
+        src_offset = 0
+        out_offset = 0
+        while src_offset < (len(src_row) - 2):
+            prefix_bits = self.bytes_to_bits(src_row, src_offset, 2)
+            src_offset += 2
+            for bit_index in xrange(16):
+                if src_offset >= len(src_row):
+                    break
+                if prefix_bits[bit_index] == 0:
+                    out_row = self.ensure_capacity(out_row, out_offset)
+                    out_row[out_offset] = src_row[src_offset]
+                    src_offset += 1
+                    out_offset += 1
+                    continue
+                marker_byte = src_row[src_offset]
+                next_byte = src_row[src_offset + 1]
+                if self.is_short_rle(marker_byte):
+                    length = self.get_length_of_rle_pattern(marker_byte)
+                    out_row = self.ensure_capacity(
+                        out_row, out_offset + length
+                    )
+                    pattern = self.clone_byte(next_byte, length)
+                    out_row[out_offset:out_offset + length] = pattern
+                    out_offset += length
+                    src_offset += 2
+                    continue
+                elif self.is_single_byte_marker(marker_byte) and not\
+                        ((next_byte & 0xF0) == ((next_byte << 4) & 0xF0)):
+                    length = self.get_length_of_one_byte_pattern(marker_byte)
+                    out_row = self.ensure_capacity(
+                        out_row, out_offset + length
+                    )
+                    back_offset = self.get_offset_for_one_byte_pattern(
+                        marker_byte
+                    )
+                    start = out_offset - back_offset
+                    end = start + length
+                    out_row[out_offset:out_offset + length] =\
+                        out_row[start:end]
+                    src_offset += 1
+                    out_offset += length
+                    continue
+                two_bytes_marker = src_row[src_offset:src_offset + 2]
+                if self.is_two_bytes_marker(two_bytes_marker):
+                    length = self.get_length_of_two_bytes_pattern(
+                        two_bytes_marker
+                    )
+                    out_row = self.ensure_capacity(
+                        out_row, out_offset + length
+                    )
+                    back_offset = self.get_offset_for_two_bytes_pattern(
+                        two_bytes_marker
+                    )
+                    start = out_offset - back_offset
+                    end = start + length
+                    out_row[out_offset:out_offset + length] =\
+                        out_row[start:end]
+                    src_offset += 2
+                    out_offset += length
+                    continue
+                three_bytes_marker = src_row[src_offset:src_offset + 3]
+                if self.is_three_bytes_marker(three_bytes_marker):
+                    p_type = (three_bytes_marker[0] >> 4) & 0x0F
+                    back_offset = 0
+                    if p_type == 2:
+                        back_offset = self.get_offset_for_three_bytes_pattern(
+                            three_bytes_marker
+                        )
+                    length = self.get_length_of_three_bytes_pattern(
+                        p_type, three_bytes_marker
+                    )
+                    out_row = self.ensure_capacity(
+                        out_row, out_offset + length
+                    )
+                    if p_type == 1:
+                        pattern = self.clone_byte(
+                            three_bytes_marker[2], length
+                        )
+                    else:
+                        start = out_offset - back_offset
+                        end = start + length
+                        pattern = out_row[start:end]
+                    out_row[out_offset:out_offset + length] = pattern
+                    src_offset += 3
+                    out_offset += length
+                    continue
+                else:
+                    self.parent.logger.error(
+                        'unknown marker %s at offset %s', src_row[src_offset],
+                        src_offset
+                    )
+                    return ''.join([chr(x) for x in src_row])
+        return ''.join([chr(x) for x in out_row])
 
 
 class SAS7BDAT(object):
@@ -314,7 +471,7 @@ class SAS7BDAT(object):
             newfmt = 'd'
             if size < 8:
                 if self.endianess == 'little':
-                    bytes = '\x00' * (8 - size) + bytes
+                    bytes = '%s%s' % ('\x00' * (8 - size), bytes)
                 else:
                     bytes += '\x00' * (8 - size)
                 size = 8
