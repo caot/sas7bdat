@@ -187,11 +187,12 @@ class RDCDecompressor(Decompressor):
         return first_byte_of_cb in {0x02, 0x04, 0x06, 0x08, 0x0A}
 
     def is_two_bytes_marker(self, double_bytes_cb):
-        return ((double_bytes_cb[0] >> 4) & 0xF) > 2
+        return len(double_bytes_cb) == 2 and\
+            ((double_bytes_cb[0] >> 4) & 0xF) > 2
 
     def is_three_bytes_marker(self, three_byte_marker):
         flag = three_byte_marker[0] >> 4
-        return (flag & 0xF) in {1, 2}
+        return len(three_byte_marker) == 3 and (flag & 0xF) in {1, 2}
 
     def get_length_of_rle_pattern(self, first_byte_of_cb):
         if first_byte_of_cb <= 0x05:
@@ -323,7 +324,7 @@ class RDCDecompressor(Decompressor):
                         'unknown marker %s at offset %s', src_row[src_offset],
                         src_offset
                     )
-                    return ''.join([chr(x) for x in src_row])
+                    return ''.join([chr(x) for x in out_row])
         return ''.join([chr(x) for x in out_row])
 
 
