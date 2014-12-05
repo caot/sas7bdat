@@ -470,6 +470,8 @@ class SAS7BDAT(object):
             newfmt = '%ds' % min(size, len(bytes))
         elif fmt in {'number', 'datetime', 'date', 'time'}:
             newfmt = 'd'
+            if len(bytes) != size:
+                size = len(bytes)
             if size < 8:
                 if self.endianess == 'little':
                     bytes = '%s%s' % ('\x00' * (8 - size), bytes)
@@ -514,22 +516,29 @@ class SAS7BDAT(object):
             self.current_row_in_file_index += 1
             current_page_type = self.current_page_type
             if current_page_type == self.header.PAGE_META_TYPE:
-                current_subheader_pointer =\
-                    self.current_page_data_subheader_pointers[
-                        self.current_row_on_page_index
-                    ]
-                self.current_row_on_page_index += 1
-                cls = self.header.SUBHEADER_INDEX_TO_CLASS.get(
-                    self.header.DATA_SUBHEADER_INDEX
-                )
-                if cls is None:
-                    raise NotImplementedError
-                cls(self).process_subheader(current_subheader_pointer.offset,
-                                            current_subheader_pointer.length)
-                if self.current_row_on_page_index ==\
-                        len(self.current_page_data_subheader_pointers):
+                try:
+                    current_subheader_pointer =\
+                        self.current_page_data_subheader_pointers[
+                            self.current_row_on_page_index
+                        ]
+                except IndexError:
                     self._read_next_page()
                     self.current_row_on_page_index = 0
+                else:
+                    self.current_row_on_page_index += 1
+                    cls = self.header.SUBHEADER_INDEX_TO_CLASS.get(
+                        self.header.DATA_SUBHEADER_INDEX
+                    )
+                    if cls is None:
+                        raise NotImplementedError
+                    cls(self).process_subheader(
+                        current_subheader_pointer.offset,
+                        current_subheader_pointer.length
+                    )
+                    if self.current_row_on_page_index ==\
+                            len(self.current_page_data_subheader_pointers):
+                        self._read_next_page()
+                        self.current_row_on_page_index = 0
             elif current_page_type in self.header.PAGE_MIX_TYPE:
                 align_correction = (
                     bit_offset + self.header.SUBHEADER_POINTERS_OFFSET +
