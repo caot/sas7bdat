@@ -248,7 +248,10 @@ class RDCDecompressor(Decompressor):
                     out_offset += 1
                     continue
                 marker_byte = src_row[src_offset]
-                next_byte = src_row[src_offset + 1]
+                try:
+                    next_byte = src_row[src_offset + 1]
+                except IndexError:
+                    break
                 if self.is_short_rle(marker_byte):
                     length = self.get_length_of_rle_pattern(marker_byte)
                     out_row = self.ensure_capacity(
@@ -324,7 +327,7 @@ class RDCDecompressor(Decompressor):
                         'unknown marker %s at offset %s', src_row[src_offset],
                         src_offset
                     )
-                    return ''.join([chr(x) for x in out_row])
+                    break
         return ''.join([chr(x) for x in out_row])
 
 
