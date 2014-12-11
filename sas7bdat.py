@@ -333,10 +333,16 @@ class RDCDecompressor(Decompressor):
 
 class SAS7BDAT(object):
     """
-    SAS7BDAT(path[, log_level]) -> SAS7BDAT object
+    SAS7BDAT(path[, log_level[, extra_time_format_strings[, \
+extra_date_time_format_strings[, extra_date_format_strings]]]]) -> \
+SAS7BDAT object
 
     Open a SAS7BDAT file. The log level are standard logging levels
     (defaults to logging.INFO).
+
+    If your sas7bdat file uses non-standard format strings for time, datetime,
+    or date values, pass those strings into the constructor using the
+    appropriate kwarg.
     """
     RLE_COMPRESSION = 'SASYZCRL'
     RDC_COMPRESSION = 'SASYZCR2'
@@ -357,7 +363,10 @@ class SAS7BDAT(object):
         'YYMMDD', 'MMDDYY', 'DDMMYY', 'DATE', 'JULIAN', 'MONYY'
     }
 
-    def __init__(self, path, log_level=logging.INFO):
+    def __init__(self, path, log_level=logging.INFO,
+                 extra_time_format_strings=None,
+                 extra_date_time_format_strings=None,
+                 extra_date_format_strings=None):
         """
         x.__init__(...) initializes x; see help(type(x)) for signature
         """
@@ -367,6 +376,15 @@ class SAS7BDAT(object):
         self.endianess = None
         self.u64 = False
         self.logger = self._make_logger(level=log_level)
+        self._update_format_strings(
+            self.TIME_FORMAT_STRINGS, extra_time_format_strings
+        )
+        self._update_format_strings(
+            self.DATE_TIME_FORMAT_STRINGS, extra_date_time_format_strings
+        )
+        self._update_format_strings(
+            self.DATE_FORMAT_STRINGS, extra_date_format_strings
+        )
         self._file = open(self.path, 'rb')
         self.cached_page = None
         self.current_page_type = None
@@ -412,6 +430,15 @@ class SAS7BDAT(object):
         x.__iter__() <==> iter(x)
         """
         return self.readlines()
+
+    def _update_format_strings(self, var, format_strings):
+        if format_strings is not None:
+            if isinstance(format_strings, basestring):
+                var.update({format_strings})
+            elif isinstance(format_strings, (set, list, tuple)):
+                var.update(set(format_strings))
+            else:
+                raise NotImplementedError
 
     def close(self):
         """
