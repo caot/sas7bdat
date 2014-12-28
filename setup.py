@@ -9,7 +9,7 @@ if sys.version_info < (2, 7):
 
 
 setup(name='sas7bdat',
-      version='1.0.4',
+      version='1.0.5',
       author='Jared Hobbs',
       author_email='jared@pyhacker.com',
       license='MIT',

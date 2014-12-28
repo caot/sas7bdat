@@ -366,7 +366,8 @@ SAS7BDAT object
     def __init__(self, path, log_level=logging.INFO,
                  extra_time_format_strings=None,
                  extra_date_time_format_strings=None,
-                 extra_date_format_strings=None):
+                 extra_date_format_strings=None,
+                 skip_header=False):
         """
         x.__init__(...) initializes x; see help(type(x)) for signature
         """
@@ -385,6 +386,7 @@ SAS7BDAT object
         self._update_format_strings(
             self.DATE_FORMAT_STRINGS, extra_date_format_strings
         )
+        self.skip_header = skip_header
         self._file = open(self.path, 'rb')
         self.cached_page = None
         self.current_page_type = None
@@ -536,7 +538,8 @@ SAS7BDAT object
         bit_offset = self.header.PAGE_BIT_OFFSET
         subheader_pointer_length = self.header.SUBHEADER_POINTER_LENGTH
         row_count = self.header.properties.row_count
-        yield [x.name for x in self.columns]
+        if not self.skip_header:
+            yield [x.name for x in self.columns]
         if not self.cached_page:
             self._file.seek(self.properties.header_length)
             self._read_next_page()
