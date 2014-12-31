@@ -408,6 +408,7 @@ SAS7BDAT object
         self.properties = self.header.properties
         self.header.parse_metadata()
         self.logger.debug('\n%s', str(self.header))
+        self._iter = self.readlines()
 
     def __repr__(self):
         """
@@ -431,7 +432,13 @@ SAS7BDAT object
         """
         x.__iter__() <==> iter(x)
         """
-        return self.readlines()
+        return self
+
+    def __next__(self):
+        return next(self._iter)
+
+    def next(self):
+        return self.__next__()
 
     def _update_format_strings(self, var, format_strings):
         if format_strings is not None:
