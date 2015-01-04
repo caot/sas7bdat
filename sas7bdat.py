@@ -805,7 +805,9 @@ class ProcessingSubheader(object):
     TEXT_BLOCK_SIZE_LENGTH = 2
     ROW_LENGTH_OFFSET_MULTIPLIER = 5
     ROW_COUNT_OFFSET_MULTIPLIER = 6
-    ROW_COUNT_ON_MIX_PAGE_OFFSET_MULTIPLIER = 15
+    COL_COUNT_P1_MULTIPLIER = 9
+    COL_COUNT_P2_MULTIPLIER = 10
+    ROW_COUNT_ON_MIX_PAGE_OFFSET_MULTIPLIER = 15  # rowcountfp
     COLUMN_NAME_POINTER_LENGTH = 8
     COLUMN_NAME_TEXT_SUBHEADER_OFFSET = 0
     COLUMN_NAME_TEXT_SUBHEADER_LENGTH = 2
@@ -844,31 +846,57 @@ class ProcessingSubheader(object):
 class RowSizeSubheader(ProcessingSubheader):
     def process_subheader(self, offset, length):
         int_len = self.int_length
+        lcs = offset + (682 if self.properties.u64 else 354)
+        lcp = offset + (706 if self.properties.u64 else 378)
         vals = self.parent._read_bytes({
             offset + self.ROW_LENGTH_OFFSET_MULTIPLIER * int_len: int_len,
             offset + self.ROW_COUNT_OFFSET_MULTIPLIER * int_len: int_len,
             offset + self.ROW_COUNT_ON_MIX_PAGE_OFFSET_MULTIPLIER * int_len:
                 int_len,
+            offset + self.COL_COUNT_P1_MULTIPLIER * int_len: int_len,
+            offset + self.COL_COUNT_P2_MULTIPLIER * int_len: int_len,
+            lcs: 2,
+            lcp: 2,
         })
-        if self.properties.row_length == 0:
-            self.properties.row_length = self.parent._read_val(
-                'i',
-                vals[offset + self.ROW_LENGTH_OFFSET_MULTIPLIER * int_len],
-                int_len
-            )
-        if self.properties.row_count == 0:
-            self.properties.row_count = self.parent._read_val(
-                'i',
-                vals[offset + self.ROW_COUNT_OFFSET_MULTIPLIER * int_len],
-                int_len
-            )
-        if self.properties.mix_page_row_count == 0:
-            self.properties.mix_page_row_count = self.parent._read_val(
-                'i',
-                vals[offset + self.ROW_COUNT_ON_MIX_PAGE_OFFSET_MULTIPLIER *
-                     int_len],
-                int_len
-            )
+        if self.properties.row_length is not None:
+            self.logger.error('found more than one row length subheader')
+        if self.properties.row_count is not None:
+            self.logger.error('found more than one row count subheader')
+        if self.properties.col_count_p1 is not None:
+            self.logger.error('found more than one col count p1 subheader')
+        if self.properties.col_count_p2 is not None:
+            self.logger.error('found more than one col count p2 subheader')
+        if self.properties.mix_page_row_count is not None:
+            self.logger.error('found more than one mix page row count '
+                              'subheader')
+        self.properties.row_length = self.parent._read_val(
+            'i',
+            vals[offset + self.ROW_LENGTH_OFFSET_MULTIPLIER * int_len],
+            int_len
+        )
+        self.properties.row_count = self.parent._read_val(
+            'i',
+            vals[offset + self.ROW_COUNT_OFFSET_MULTIPLIER * int_len],
+            int_len
+        )
+        self.properties.col_count_p1 = self.parent._read_val(
+            'i',
+            vals[offset + self.COL_COUNT_P1_MULTIPLIER * int_len],
+            int_len
+        )
+        self.properties.col_count_p2 = self.parent._read_val(
+            'i',
+            vals[offset + self.COL_COUNT_P2_MULTIPLIER * int_len],
+            int_len
+        )
+        self.properties.mix_page_row_count = self.parent._read_val(
+            'i',
+            vals[offset + self.ROW_COUNT_ON_MIX_PAGE_OFFSET_MULTIPLIER *
+                 int_len],
+            int_len
+        )
+        self.properties.lcs = self.parent._read_val('h', vals[lcs], 2)
+        self.properties.lcp = self.parent._read_val('h', vals[lcp], 2)
 
 
 class ColumnSizeSubheader(ProcessingSubheader):
@@ -877,9 +905,14 @@ class ColumnSizeSubheader(ProcessingSubheader):
         vals = self.parent._read_bytes({
             offset: self.int_length
         })
+        if self.properties.column_count is not None:
+            self.logger.error('found more than one column count subheader')
         self.properties.column_count = self.parent._read_val(
             'i', vals[offset], self.int_length
         )
+        if self.properties.col_count_p1 + self.properties.col_count_p2 !=\
+                self.properties.column_count:
+            self.logger.warning('column count mismatch')
 
 
 class SubheaderCountsSubheader(ProcessingSubheader):
@@ -911,6 +944,50 @@ class ColumnTextSubheader(ProcessingSubheader):
                     compression_literal = cl
                     break
             self.properties.compression = compression_literal
+            offset -= self.int_length
+            vals = self.parent._read_bytes({
+                offset + (20 if self.properties.u64 else 16): 8
+            })
+            compression_literal = self.parent._read_val(
+                's',
+                vals[offset + (20 if self.properties.u64 else 16)],
+                8
+            ).strip()
+            if compression_literal == '':
+                self.properties.lcs = 0
+                vals = self.parent._read_bytes({
+                    offset + 16 + (20 if self.properties.u64 else 16):
+                        self.properties.lcp
+                })
+                creatorproc = self.parent._read_val(
+                    's',
+                    vals[offset + 16 + (20 if self.properties.u64 else 16)],
+                    self.properties.lcp
+                )
+                self.properties.creator_proc = creatorproc
+            elif compression_literal == SAS7BDAT.RLE_COMPRESSION:
+                vals = self.parent._read_bytes({
+                    offset + 24 + (20 if self.properties.u64 else 16):
+                        self.properties.lcp
+                })
+                creatorproc = self.parent._read_val(
+                    's',
+                    vals[offset + 24 + (20 if self.properties.u64 else 16)],
+                    self.properties.lcp
+                )
+                self.properties.creator_proc = creatorproc
+            elif self.properties.lcs > 0:
+                self.properties.lcp = 0
+                vals = self.parent._read_bytes({
+                    offset + (20 if self.properties.u64 else 16):
+                        self.properties.lcs
+                })
+                creator = self.parent._read_val(
+                    's',
+                    vals[offset + (20 if self.properties.u64 else 16)],
+                    self.properties.lcs
+                )
+                self.properties.creator = creator
 
 
 class ColumnNameSubheader(ProcessingSubheader):
@@ -1103,10 +1180,16 @@ class SASProperties(object):
         self.os_type = None
         self.os_name = None
         self.compression = None
-        self.row_length = 0
-        self.row_count = 0
-        self.mix_page_row_count = 0
-        self.column_count = 0
+        self.row_length = None
+        self.row_count = None
+        self.col_count_p1 = None
+        self.col_count_p2 = None
+        self.mix_page_row_count = None
+        self.lcs = None
+        self.lcp = None
+        self.creator = None
+        self.creator_proc = None
+        self.column_count = None
         self.filename = None
 
 
