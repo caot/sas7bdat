@@ -424,7 +424,6 @@ SAS7BDAT object
         self.current_page_block_count = None
         self.current_page_subheaders_count = None
         self.current_file_position = 0
-        self.current_column_number = 0
         self.current_page_data_subheader_pointers = []
         self.current_row = []
         self.column_names_strings = []
@@ -933,9 +932,7 @@ class ColumnTextSubheader(ProcessingSubheader):
         vals = self.parent._read_bytes({
             offset: text_block_size
         })
-        self.parent.column_names_strings.append(self.parent._read_val(
-            's', vals[offset], text_block_size
-        ))
+        self.parent.column_names_strings.append(vals[offset])
         if len(self.parent.column_names_strings) == 1:
             column_name = self.parent.column_names_strings[0]
             compression_literal = None
@@ -992,6 +989,23 @@ class ColumnTextSubheader(ProcessingSubheader):
 
 class ColumnNameSubheader(ProcessingSubheader):
     def process_subheader(self, offset, length):
+        """
+        info = []
+        inc = 8 if self.u64 else 4
+        for subh in colname:
+            if self.u64:
+                attrs = subh.raw[16:16 + ((subh.length - 28) / 8) * 8]
+            else:
+                attrs = subh.raw[12:12 + ((subh.length - 20) / 8) * 8]
+            for i in xrange(0, len(attrs), 8):
+                pointer = attrs[i:i + 8]
+                txt = self.readVal('h', pointer, 0, 2)
+                offset = self.readVal('h', pointer, 2, 2) + inc
+                length = self.readVal('h', pointer, 4, 2)
+                info.append(
+                    self.readVal('s', coltext[txt].raw, offset, length)
+                )
+        """
         offset += self.int_length
         column_name_pointers_count = (length - 2 * self.int_length - 12) // 8
         for i in xrange(column_name_pointers_count):
@@ -1140,15 +1154,15 @@ class FormatAndLabelSubheader(ProcessingSubheader):
         column_label = label_names[label_start:label_start + label_len]
         format_names = self.parent.column_names_strings[format_idx]
         column_format = format_names[format_start:format_start + format_len]
-        current_column_number = self.parent.current_column_number
+        current_column_number = len(self.parent.columns)
         self.parent.columns.append(
             Column(current_column_number,
-                   self.parent.column_names[len(self.parent.columns)],
-                   column_label, column_format,
-                   self.parent.column_types[len(self.parent.columns)],
+                   self.parent.column_names[current_column_number],
+                   column_label,
+                   column_format,
+                   self.parent.column_types[current_column_number],
                    self.parent.column_data_lengths[current_column_number])
         )
-        self.parent.current_column_number += 1
 
 
 class ColumnListSubheader(ProcessingSubheader):
