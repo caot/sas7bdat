@@ -989,23 +989,6 @@ class ColumnTextSubheader(ProcessingSubheader):
 
 class ColumnNameSubheader(ProcessingSubheader):
     def process_subheader(self, offset, length):
-        """
-        info = []
-        inc = 8 if self.u64 else 4
-        for subh in colname:
-            if self.u64:
-                attrs = subh.raw[16:16 + ((subh.length - 28) / 8) * 8]
-            else:
-                attrs = subh.raw[12:12 + ((subh.length - 20) / 8) * 8]
-            for i in xrange(0, len(attrs), 8):
-                pointer = attrs[i:i + 8]
-                txt = self.readVal('h', pointer, 0, 2)
-                offset = self.readVal('h', pointer, 2, 2) + inc
-                length = self.readVal('h', pointer, 4, 2)
-                info.append(
-                    self.readVal('s', coltext[txt].raw, offset, length)
-                )
-        """
         offset += self.int_length
         column_name_pointers_count = (length - 2 * self.int_length - 12) // 8
         for i in xrange(column_name_pointers_count):
