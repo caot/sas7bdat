@@ -395,7 +395,8 @@ SAS7BDAT object
                  extra_date_format_strings=None,
                  skip_header=False,
                  encoding='utf8',
-                 encoding_errors='ignore'):
+                 encoding_errors='ignore',
+                 align_correction=True):
         """
         x.__init__(...) initializes x; see help(type(x)) for signature
         """
@@ -417,6 +418,7 @@ SAS7BDAT object
         self.skip_header = skip_header
         self.encoding = encoding
         self.encoding_errors = encoding_errors
+        self.align_correction = align_correction
         self._file = open(self.path, 'rb')
         self._open_files.append(self._file)
         self.cached_page = None
@@ -609,21 +611,32 @@ SAS7BDAT object
                         self._read_next_page()
                         current_row_on_page_index = 0
             elif current_page_type in self.header.PAGE_MIX_TYPE:
-                align_correction = (
-                    bit_offset + self.header.SUBHEADER_POINTERS_OFFSET +
-                    self.current_page_subheaders_count *
-                    subheader_pointer_length
-                ) % 8
+                if self.align_correction:
+                    align_correction = (
+                        bit_offset + self.header.SUBHEADER_POINTERS_OFFSET +
+                        self.current_page_subheaders_count *
+                        subheader_pointer_length
+                    ) % 8
+                else:
+                    align_correction = 0
                 offset = (
                     bit_offset + self.header.SUBHEADER_POINTERS_OFFSET +
                     align_correction + self.current_page_subheaders_count *
                     subheader_pointer_length + current_row_on_page_index *
                     self.properties.row_length
                 )
-                self.current_row = self._process_byte_array_with_data(
-                    offset,
-                    self.properties.row_length
-                )
+                try:
+                    self.current_row = self._process_byte_array_with_data(
+                        offset,
+                        self.properties.row_length
+                    )
+                except:
+                    self.logger.exception(
+                        'failed to process data (you might want to try '
+                        'passing align_correction=%s to the SAS7BDAT '
+                        'constructor)' % (not self.align_correction)
+                    )
+                    raise
                 current_row_on_page_index += 1
                 if current_row_on_page_index == min(
                     self.properties.row_count,
@@ -739,7 +752,7 @@ SAS7BDAT object
             out = csv.writer(out_f, lineterminator='\n', delimiter=delimiter)
             i = 0
             for i, line in enumerate(self, 1):
-                if len(line) != self.properties.column_count:
+                if len(line) != (self.properties.column_count or 0):
                     msg = 'parsed line into %s columns but was ' \
                           'expecting %s.\n%s' %\
                           (len(line), self.properties.column_count, line)
@@ -760,7 +773,7 @@ SAS7BDAT object
                     break
             self.logger.info(u'\u27f6 [%s] wrote %s of %s lines',
                              os.path.basename(out_file), i - 1,
-                             self.properties.row_count)
+                             self.properties.row_count or 0)
         finally:
             if out_f is not None:
                 out_f.close()
