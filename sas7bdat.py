@@ -1404,8 +1404,9 @@ class SASHeader(object):
             'i', vals[self.HEADER_SIZE_OFFSET + align1],
             self.HEADER_SIZE_LENGTH
         )
-        if self.properties.u64:
-            assert self.properties.header_length == 8192
+        if self.properties.u64 and self.properties.header_length != 8192:
+            parent.logger.warning('header length %s != 8192',
+                                  self.properties.header_length)
         parent.cached_page += parent._file.read(
             self.properties.header_length - 288
         )
