@@ -796,7 +796,7 @@ class Column(object):
         self.col_id = col_id
         self.name = name
         self.label = label
-        self.format = col_format
+        self.format = col_format.decode("utf-8")
         self.type = col_type
         self.length = length
 
