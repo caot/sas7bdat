@@ -204,10 +204,10 @@ class RDCDecompressor(Decompressor):
         return src
 
     def is_short_rle(self, first_byte_of_cb):
-        return first_byte_of_cb in {0x00, 0x01, 0x02, 0x03, 0x04, 0x05}
+        return first_byte_of_cb in set([0x00, 0x01, 0x02, 0x03, 0x04, 0x05])
 
     def is_single_byte_marker(self, first_byte_of_cb):
-        return first_byte_of_cb in {0x02, 0x04, 0x06, 0x08, 0x0A}
+        return first_byte_of_cb in set([0x02, 0x04, 0x06, 0x08, 0x0A])
 
     def is_two_bytes_marker(self, double_bytes_cb):
         return len(double_bytes_cb) == 2 and\
@@ -215,7 +215,7 @@ class RDCDecompressor(Decompressor):
 
     def is_three_bytes_marker(self, three_byte_marker):
         flag = three_byte_marker[0] >> 4
-        return len(three_byte_marker) == 3 and (flag & 0xF) in {1, 2}
+        return len(three_byte_marker) == 3 and (flag & 0xF) in set([1, 2])
 
     def get_length_of_rle_pattern(self, first_byte_of_cb):
         if first_byte_of_cb <= 0x05:
@@ -372,22 +372,22 @@ SAS7BDAT object
     _open_files = []
     RLE_COMPRESSION = b'SASYZCRL'
     RDC_COMPRESSION = b'SASYZCR2'
-    COMPRESSION_LITERALS = {
+    COMPRESSION_LITERALS = set([
         RLE_COMPRESSION, RDC_COMPRESSION
-    }
+    ])
     DECOMPRESSORS = {
         RLE_COMPRESSION: RLEDecompressor,
         RDC_COMPRESSION: RDCDecompressor
     }
-    TIME_FORMAT_STRINGS = {
+    TIME_FORMAT_STRINGS = set([
         'TIME'
-    }
-    DATE_TIME_FORMAT_STRINGS = {
+    ])
+    DATE_TIME_FORMAT_STRINGS = set([
         'DATETIME'
-    }
-    DATE_FORMAT_STRINGS = {
+    ])
+    DATE_FORMAT_STRINGS = set([
         'YYMMDD', 'MMDDYY', 'DDMMYY', 'DATE', 'JULIAN', 'MONYY'
-    }
+    ])
 
     def __init__(self, path, log_level=logging.INFO,
                  extra_time_format_strings=None,
@@ -462,18 +462,12 @@ SAS7BDAT object
         """
         x.__iter__() <==> iter(x)
         """
-        return self
-
-    def __next__(self):
-        return next(self._iter)
-
-    def next(self):
-        return self.__next__()
+        return self.readlines()
 
     def _update_format_strings(self, var, format_strings):
         if format_strings is not None:
             if isinstance(format_strings, str):
-                var.update({format_strings})
+                var.add(format_strings)
             elif isinstance(format_strings, (set, list, tuple)):
                 var.update(set(format_strings))
             else:
@@ -537,7 +531,7 @@ SAS7BDAT object
         newfmt = fmt
         if fmt == 's':
             newfmt = '%ds' % min(size, len(raw_bytes))
-        elif fmt in {'number', 'datetime', 'date', 'time'}:
+        elif fmt in set(['number', 'datetime', 'date', 'time']):
             newfmt = 'd'
             if len(raw_bytes) != size:
                 size = len(raw_bytes)
