@@ -462,13 +462,7 @@ SAS7BDAT object
         """
         x.__iter__() <==> iter(x)
         """
-        return self
-
-    def __next__(self):
-        return next(self._iter)
-
-    def next(self):
-        return self.__next__()
+        return self.readlines()
 
     def _update_format_strings(self, var, format_strings):
         if format_strings is not None:
