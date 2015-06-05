@@ -556,6 +556,10 @@ SAS7BDAT object
             val = (datetime(1960, 1, 1) + timedelta(seconds=val)).time()
         elif fmt == 'date':
             val = (datetime(1960, 1, 1) + timedelta(days=val)).date()
+        elif fmt in set(['number']):
+            i = int(val)
+            if i == val:
+                val = i
         return val
 
     def readlines(self):
