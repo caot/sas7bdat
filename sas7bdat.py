@@ -549,7 +549,7 @@ SAS7BDAT object
         if fmt == 's':
             val = val.strip(b'\x00').strip()
         elif math.isnan(val):
-            val = None
+            val = ''
         elif fmt == 'datetime':
             val = datetime(1960, 1, 1) + timedelta(seconds=val)
         elif fmt == 'time':
